@@ -91,6 +91,21 @@ function Profile() {
           </div>
         </div>
       </div>
+
+      <footer className="footer">
+        <div className="footer-content">
+          <div className="footer-brand">
+            <span className="logo-icon">🏠</span>
+            <span className="logo-text">3D House Design</span>
+          </div>
+          <p className="footer-text">© 2026 3D House Design. All rights reserved.</p>
+          <div className="footer-social">
+            <a href="#" className="social-link">f</a>
+            <a href="#" className="social-link">𝕏</a>
+            <a href="#" className="social-link">in</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
