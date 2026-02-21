@@ -57,7 +57,8 @@ function Home() {
         <div className="nav-links">
           <Link to="/" className="nav-link">Home</Link>
           <Link to="/gallery" className="nav-link">Projects</Link>
-          <Link to="/services" className="nav-link">Services</Link>
+          <Link to="/designer" className="nav-link">Designer</Link>
+          <Link to="/ai-designer" className="nav-link">AI Designer</Link>
           <Link to="/viewer" className="nav-link">3D Viewer</Link>
           <Link to="/about" className="nav-link">About</Link>
           <Link to="/contact" className="nav-link">Contact</Link>
@@ -79,12 +80,12 @@ function Home() {
               and professional rendering.
             </p>
             <div className="hero-buttons">
-              <Link to="/register" className="btn-hero-primary">
-                🚀 Get Started Now
+              <Link to="/designer" className="btn-hero-primary">
+                🚀 Start Designing
               </Link>
-              <button className="btn-hero-secondary">
-                ▶️ Watch Demo
-              </button>
+              <Link to="/ai-designer" className="btn-hero-secondary">
+                🤖 Try AI Designer
+              </Link>
             </div>
             <div className="hero-stats">
               <div className="stat-item">
@@ -170,7 +171,10 @@ function Home() {
         <div className="cta-content">
           <h2>Start Your Dream Home Today</h2>
           <p>Create a free account and start designing your 3D home. No credit card required.</p>
-          <Link to="/register" className="btn-cta">🔒 Get Started Free</Link>
+          <div className="cta-buttons">
+            <Link to="/designer" className="btn-cta">🎨 Parametric Designer</Link>
+            <Link to="/ai-designer" className="btn-cta-secondary">🤖 AI Designer</Link>
+          </div>
         </div>
       </section>
 

@@ -10,6 +10,7 @@ import Gallery from "./pages/Gallery";
 import Services from "./pages/Services";
 import Viewer3D from "./pages/Viewer3D";
 import Designer from "./pages/Designer";
+import AIDesigner from "./pages/AIDesigner";
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
         <Route path="/services" element={<Services />} />
         <Route path="/viewer" element={<Viewer3D />} />
         <Route path="/designer" element={<Designer />} />
+        <Route path="/ai-designer" element={<AIDesigner />} />
       </Routes>
     </Router>
   );
