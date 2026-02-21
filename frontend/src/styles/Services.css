@@ -1,0 +1,129 @@
+.services-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 40px 20px;
+}
+
+.services-header {
+  text-align: center;
+  color: white;
+  margin-bottom: 50px;
+}
+
+.services-header h1 {
+  font-size: 3rem;
+  margin-bottom: 10px;
+}
+
+.services-header p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+}
+
+.services-grid {
+  max-width: 1200px;
+  margin: 0 auto 60px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
+}
+
+.service-card {
+  background: white;
+  border-radius: 15px;
+  padding: 40px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  transition: transform 0.3s;
+}
+
+.service-card:hover {
+  transform: translateY(-10px);
+}
+
+.service-icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+}
+
+.service-card h3 {
+  color: #333;
+  margin-bottom: 15px;
+  font-size: 1.5rem;
+}
+
+.service-card p {
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 25px;
+}
+
+.service-btn {
+  padding: 12px 30px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.service-btn:hover {
+  background: #5568d3;
+  transform: translateY(-2px);
+}
+
+.services-cta {
+  max-width: 800px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 15px;
+  padding: 60px 40px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.services-cta h2 {
+  color: #333;
+  margin-bottom: 15px;
+  font-size: 2rem;
+}
+
+.services-cta p {
+  color: #666;
+  margin-bottom: 30px;
+  font-size: 1.1rem;
+}
+
+.cta-button {
+  padding: 15px 50px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 30px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.cta-button:hover {
+  background: #5568d3;
+  transform: translateY(-3px);
+  box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+}
+
+@media (max-width: 768px) {
+  .services-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .services-header h1 {
+    font-size: 2rem;
+  }
+  
+  .services-cta {
+    padding: 40px 20px;
+  }
+}
