@@ -43,6 +43,22 @@ function Services() {
 
   return (
     <div className="services-container">
+      <nav className="navbar">
+        <div className="nav-brand">
+          <span className="logo-icon">🏠</span>
+          <span className="logo-text">3D House Design</span>
+        </div>
+        <div className="nav-links">
+          <a href="/" className="nav-link">Home</a>
+          <a href="/gallery" className="nav-link">Projects</a>
+          <a href="/services" className="nav-link-active">Services</a>
+          <a href="/about" className="nav-link">About</a>
+          <a href="/contact" className="nav-link">Contact</a>
+          <a href="/signin" className="nav-link-signin">Sign In</a>
+          <a href="/register" className="btn-nav-primary">Get Started Free</a>
+        </div>
+      </nav>
+
       <div className="services-header">
         <h1>Our Services</h1>
         <p>Professional 3D design solutions for your dream home</p>

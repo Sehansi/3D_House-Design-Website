@@ -1,13 +1,66 @@
 .profile-container {
   min-height: 100vh;
-  padding: 40px 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 0;
+  background: #0a0e27;
+  color: white;
+}
+
+/* Navbar */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 60px;
+  background: rgba(10, 14, 39, 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.logo-icon {
+  font-size: 1.8rem;
+}
+
+.logo-text {
+  color: white;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.nav-link {
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: color 0.3s;
+}
+
+.nav-link:hover {
+  color: white;
+}
+
+.nav-link-active {
+  color: #00d9ff;
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .profile-header {
   text-align: center;
   color: white;
-  margin-bottom: 40px;
+  margin: 80px 0 40px;
+  padding: 0 20px;
 }
 
 .profile-header h1 {
@@ -17,14 +70,16 @@
 
 .profile-content {
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 0 auto 60px;
+  padding: 0 20px;
   display: grid;
   grid-template-columns: 1fr 2fr;
   gap: 30px;
 }
 
 .profile-card {
-  background: white;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 15px;
   padding: 30px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.2);
@@ -39,7 +94,7 @@
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #00d9ff 0%, #0099ff 100%);
   color: white;
   display: flex;
   align-items: center;
@@ -51,11 +106,11 @@
 
 .profile-info h2 {
   margin: 15px 0 5px;
-  color: #333;
+  color: white;
 }
 
 .profile-email {
-  color: #666;
+  color: rgba(255, 255, 255, 0.7);
   margin-bottom: 30px;
 }
 
@@ -64,17 +119,17 @@
   justify-content: space-around;
   margin: 30px 0;
   padding: 20px 0;
-  border-top: 1px solid #eee;
-  border-bottom: 1px solid #eee;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .stat h3 {
-  color: #667eea;
+  color: #00d9ff;
   margin-bottom: 5px;
 }
 
 .stat p {
-  color: #666;
+  color: rgba(255, 255, 255, 0.7);
   font-size: 0.9rem;
 }
 
@@ -95,25 +150,27 @@
 }
 
 .edit-btn {
-  background: #667eea;
-  color: white;
+  background: #00d9ff;
+  color: #0a0e27;
 }
 
 .edit-btn:hover {
-  background: #5568d3;
+  background: #00c4e6;
 }
 
 .logout-btn {
-  background: #f5f5f5;
-  color: #333;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .logout-btn:hover {
-  background: #e0e0e0;
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .profile-projects {
-  background: white;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 15px;
   padding: 30px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.2);
@@ -121,20 +178,20 @@
 
 .profile-projects h2 {
   margin-bottom: 20px;
-  color: #333;
+  color: white;
 }
 
 .empty-state {
   text-align: center;
   padding: 60px 20px;
-  color: #666;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .create-btn {
   margin-top: 20px;
   padding: 12px 30px;
-  background: #667eea;
-  color: white;
+  background: #00d9ff;
+  color: #0a0e27;
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -143,11 +200,20 @@
 }
 
 .create-btn:hover {
-  background: #5568d3;
+  background: #00c4e6;
   transform: translateY(-2px);
 }
 
 @media (max-width: 768px) {
+  .navbar {
+    padding: 15px 20px;
+  }
+  
+  .nav-links {
+    gap: 15px;
+    font-size: 0.85rem;
+  }
+  
   .profile-content {
     grid-template-columns: 1fr;
   }

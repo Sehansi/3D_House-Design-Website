@@ -25,6 +25,22 @@ function Contact() {
 
   return (
     <div className="contact-container">
+      <nav className="navbar">
+        <div className="nav-brand">
+          <span className="logo-icon">🏠</span>
+          <span className="logo-text">3D House Design</span>
+        </div>
+        <div className="nav-links">
+          <a href="/" className="nav-link">Home</a>
+          <a href="/gallery" className="nav-link">Projects</a>
+          <a href="/services" className="nav-link">Services</a>
+          <a href="/about" className="nav-link">About</a>
+          <a href="/contact" className="nav-link-active">Contact</a>
+          <a href="/signin" className="nav-link-signin">Sign In</a>
+          <a href="/register" className="btn-nav-primary">Get Started Free</a>
+        </div>
+      </nav>
+
       <div className="contact-header">
         <h1>Contact Us</h1>
         <p>Get in touch with our team</p>

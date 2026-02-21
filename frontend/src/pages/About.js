@@ -4,6 +4,22 @@ import '../styles/About.css';
 function About() {
   return (
     <div className="about-container">
+      <nav className="navbar">
+        <div className="nav-brand">
+          <span className="logo-icon">🏠</span>
+          <span className="logo-text">3D House Design</span>
+        </div>
+        <div className="nav-links">
+          <a href="/" className="nav-link">Home</a>
+          <a href="/gallery" className="nav-link">Projects</a>
+          <a href="/services" className="nav-link">Services</a>
+          <a href="/about" className="nav-link-active">About</a>
+          <a href="/contact" className="nav-link">Contact</a>
+          <a href="/signin" className="nav-link-signin">Sign In</a>
+          <a href="/register" className="btn-nav-primary">Get Started Free</a>
+        </div>
+      </nav>
+
       <div className="about-header">
         <h1>About Us</h1>
         <p>Creating Dream Homes with 3D Technology</p>

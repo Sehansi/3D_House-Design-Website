@@ -30,6 +30,21 @@ function Profile() {
 
   return (
     <div className="profile-container">
+      <nav className="navbar">
+        <div className="nav-brand">
+          <span className="logo-icon">🏠</span>
+          <span className="logo-text">3D House Design</span>
+        </div>
+        <div className="nav-links">
+          <a href="/" className="nav-link">Home</a>
+          <a href="/gallery" className="nav-link">Projects</a>
+          <a href="/services" className="nav-link">Services</a>
+          <a href="/about" className="nav-link">About</a>
+          <a href="/contact" className="nav-link">Contact</a>
+          <a href="/profile" className="nav-link-active">Profile</a>
+        </div>
+      </nav>
+
       <div className="profile-header">
         <h1>My Profile</h1>
       </div>

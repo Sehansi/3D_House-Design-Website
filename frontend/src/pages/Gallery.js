@@ -19,6 +19,22 @@ function Gallery() {
 
   return (
     <div className="gallery-container">
+      <nav className="navbar">
+        <div className="nav-brand">
+          <span className="logo-icon">🏠</span>
+          <span className="logo-text">3D House Design</span>
+        </div>
+        <div className="nav-links">
+          <a href="/" className="nav-link">Home</a>
+          <a href="/gallery" className="nav-link-active">Projects</a>
+          <a href="/services" className="nav-link">Services</a>
+          <a href="/about" className="nav-link">About</a>
+          <a href="/contact" className="nav-link">Contact</a>
+          <a href="/signin" className="nav-link-signin">Sign In</a>
+          <a href="/register" className="btn-nav-primary">Get Started Free</a>
+        </div>
+      </nav>
+
       <div className="gallery-header">
         <h1>Design Gallery</h1>
         <p>Explore our stunning 3D house designs</p>
