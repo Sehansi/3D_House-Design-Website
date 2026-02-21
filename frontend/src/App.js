@@ -8,6 +8,8 @@ import About from "./pages/About";
 import Contact from "./pages/Contact";
 import Gallery from "./pages/Gallery";
 import Services from "./pages/Services";
+import Viewer3D from "./pages/Viewer3D";
+import Designer from "./pages/Designer";
 
 function App() {
   return (
@@ -22,6 +24,8 @@ function App() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/services" element={<Services />} />
+        <Route path="/viewer" element={<Viewer3D />} />
+        <Route path="/designer" element={<Designer />} />
       </Routes>
     </Router>
   );

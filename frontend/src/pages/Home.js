@@ -58,6 +58,7 @@ function Home() {
           <Link to="/" className="nav-link">Home</Link>
           <Link to="/gallery" className="nav-link">Projects</Link>
           <Link to="/services" className="nav-link">Services</Link>
+          <Link to="/viewer" className="nav-link">3D Viewer</Link>
           <Link to="/about" className="nav-link">About</Link>
           <Link to="/contact" className="nav-link">Contact</Link>
           <Link to="/signin" className="nav-link-signin">Sign In</Link>
