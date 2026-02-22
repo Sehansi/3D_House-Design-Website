@@ -59,6 +59,7 @@ function Home() {
           <Link to="/gallery" className="nav-link">Projects</Link>
           <Link to="/designer" className="nav-link">Designer</Link>
           <Link to="/ai-designer" className="nav-link">AI Designer</Link>
+          <Link to="/furniture-customizer" className="nav-link">Furniture</Link>
           <Link to="/viewer" className="nav-link">3D Viewer</Link>
           <Link to="/about" className="nav-link">About</Link>
           <Link to="/contact" className="nav-link">Contact</Link>

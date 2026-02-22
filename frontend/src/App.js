@@ -11,6 +11,7 @@ import Services from "./pages/Services";
 import Viewer3D from "./pages/Viewer3D";
 import Designer from "./pages/Designer";
 import AIDesigner from "./pages/AIDesigner";
+import FurnitureCustomizer from "./pages/FurnitureCustomizer";
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
         <Route path="/viewer" element={<Viewer3D />} />
         <Route path="/designer" element={<Designer />} />
         <Route path="/ai-designer" element={<AIDesigner />} />
+        <Route path="/furniture-customizer" element={<FurnitureCustomizer />} />
       </Routes>
     </Router>
   );

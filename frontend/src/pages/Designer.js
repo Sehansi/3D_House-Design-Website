@@ -121,6 +121,8 @@ function Designer() {
           <a href="/" className="nav-link">Home</a>
           <a href="/gallery" className="nav-link">Projects</a>
           <a href="/designer" className="nav-link-active">Designer</a>
+          <a href="/ai-designer" className="nav-link">AI Designer</a>
+          <a href="/furniture-customizer" className="nav-link">Furniture</a>
           <a href="/viewer" className="nav-link">3D Viewer</a>
         </div>
       </nav>

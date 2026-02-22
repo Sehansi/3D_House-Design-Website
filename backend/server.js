@@ -7,8 +7,10 @@ dotenv.config();
 
 const app = express();
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB (optional for gallery)
+connectDB().catch(err => {
+  console.log('MongoDB connection failed, continuing without database:', err.message);
+});
 
 // Middleware
 app.use(cors());
@@ -18,6 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/designs', require('./routes/designs'));
+app.use('/api/gallery', require('./routes/gallery'));
 
 // Health check
 app.get('/api/health', (req, res) => {
