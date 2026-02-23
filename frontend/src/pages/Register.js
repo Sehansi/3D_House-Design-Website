@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import '../styles/Auth.css';
 
 function Register() {
@@ -13,6 +13,7 @@ function Register() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { register } = useAuth();
 
   const handleChange = (e) => {
     setFormData({
@@ -38,24 +39,19 @@ function Register() {
     setLoading(true);
     setError('');
 
-    try {
-      const data = await authAPI.register(
-        formData.fullName,
-        formData.email,
-        formData.password
-      );
-      
-      // Save token and user data
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
-      // Redirect to home
+    const result = await register(
+      formData.fullName,
+      formData.email,
+      formData.password
+    );
+    
+    if (result.success) {
       navigate('/');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    } else {
+      setError(result.error);
     }
+    
+    setLoading(false);
   };
 
   return (

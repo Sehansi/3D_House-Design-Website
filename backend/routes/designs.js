@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Design = require('../models/Design');
+const { auth } = require('../middleware/auth');
 
 // Generate 3D model data from parameters
 function generateModelData(parameters, finishes) {
@@ -80,9 +81,9 @@ function generateModelData(parameters, finishes) {
 }
 
 // Create new design
-router.post('/create', async (req, res) => {
+router.post('/create', auth, async (req, res) => {
   try {
-    const { name, parameters, finishes, userId } = req.body;
+    const { name, parameters, finishes } = req.body;
     
     // Validate parameters
     if (!parameters.bedrooms || !parameters.bathrooms || !parameters.totalArea || !parameters.floors) {
@@ -92,9 +93,9 @@ router.post('/create', async (req, res) => {
     // Generate 3D model data
     const modelData = generateModelData(parameters, finishes);
     
-    // Create design
+    // Create design with authenticated user
     const design = new Design({
-      user: userId,
+      user: req.userId,
       name,
       parameters,
       finishes,
@@ -119,8 +120,13 @@ router.post('/create', async (req, res) => {
 });
 
 // Get all designs for a user
-router.get('/user/:userId', async (req, res) => {
+router.get('/user/:userId', auth, async (req, res) => {
   try {
+    // Ensure user can only access their own designs
+    if (req.params.userId !== req.userId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
     const designs = await Design.find({ user: req.params.userId })
       .sort({ createdAt: -1 })
       .select('-modelData');
@@ -132,13 +138,32 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
+// Get current user's designs
+router.get('/my-designs', auth, async (req, res) => {
+  try {
+    const designs = await Design.find({ user: req.userId })
+      .sort({ createdAt: -1 })
+      .select('-modelData');
+    
+    res.json({ designs });
+  } catch (error) {
+    console.error('Error fetching designs:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get single design
-router.get('/:id', async (req, res) => {
+router.get('/:id', auth, async (req, res) => {
   try {
     const design = await Design.findById(req.params.id);
     
     if (!design) {
       return res.status(404).json({ message: 'Design not found' });
+    }
+
+    // Check if user owns this design
+    if (design.user.toString() !== req.userId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
     }
     
     res.json({ design });
@@ -149,9 +174,19 @@ router.get('/:id', async (req, res) => {
 });
 
 // Update design
-router.put('/:id', async (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   try {
     const { parameters, finishes } = req.body;
+    
+    // Check if design exists and user owns it
+    const existingDesign = await Design.findById(req.params.id);
+    if (!existingDesign) {
+      return res.status(404).json({ message: 'Design not found' });
+    }
+    
+    if (existingDesign.user.toString() !== req.userId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
     
     // Regenerate model data
     const modelData = generateModelData(parameters, finishes);
@@ -167,10 +202,6 @@ router.put('/:id', async (req, res) => {
       { new: true }
     );
     
-    if (!design) {
-      return res.status(404).json({ message: 'Design not found' });
-    }
-    
     res.json({
       message: 'Design updated successfully',
       design
@@ -182,13 +213,20 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete design
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', auth, async (req, res) => {
   try {
-    const design = await Design.findByIdAndDelete(req.params.id);
+    const design = await Design.findById(req.params.id);
     
     if (!design) {
       return res.status(404).json({ message: 'Design not found' });
     }
+
+    // Check if user owns this design
+    if (design.user.toString() !== req.userId.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    
+    await Design.findByIdAndDelete(req.params.id);
     
     res.json({ message: 'Design deleted successfully' });
   } catch (error) {
