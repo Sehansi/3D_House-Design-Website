@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import '../styles/Designer.css';
 
 function Designer() {
   const navigate = useNavigate();
+  const { user, token, isAuthenticated } = useAuth();
   const [step, setStep] = useState(1);
   const [designName, setDesignName] = useState('');
   const [parameters, setParameters] = useState({
@@ -24,6 +26,7 @@ function Designer() {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const handleParameterChange = (key, value) => {
     setParameters(prev => ({
@@ -75,23 +78,28 @@ function Designer() {
       setError('Please enter a design name');
       return;
     }
+
+    if (!isAuthenticated) {
+      setError('Please sign in to save your design');
+      setTimeout(() => navigate('/signin'), 2000);
+      return;
+    }
     
     setLoading(true);
     setError('');
+    setSuccess('');
     
     try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      
       const response = await fetch('http://localhost:5000/api/designs/create', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           name: designName,
           parameters,
-          finishes,
-          userId: user._id || 'guest'
+          finishes
         })
       });
       
@@ -101,10 +109,12 @@ function Designer() {
         throw new Error(data.message || 'Failed to save design');
       }
       
-      alert('Design saved successfully!');
-      navigate('/profile');
+      setSuccess('Design saved successfully!');
+      setTimeout(() => {
+        navigate('/profile');
+      }, 1500);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to save design');
     } finally {
       setLoading(false);
     }
@@ -124,6 +134,18 @@ function Designer() {
           <a href="/ai-designer" className="nav-link">AI Designer</a>
           <a href="/furniture-customizer" className="nav-link">Furniture</a>
           <a href="/viewer" className="nav-link">3D Viewer</a>
+          {isAuthenticated ? (
+            <>
+              <a href="/profile" className="nav-link">
+                👤 {user?.fullName || 'Profile'}
+              </a>
+            </>
+          ) : (
+            <>
+              <a href="/signin" className="nav-link">Sign In</a>
+              <a href="/register" className="btn-nav-primary">Get Started</a>
+            </>
+          )}
         </div>
       </nav>
 
@@ -131,6 +153,13 @@ function Designer() {
         <div className="designer-header">
           <h1>Parametric House Designer</h1>
           <p>Design your dream home by entering simple parameters</p>
+          
+          {!isAuthenticated && (
+            <div className="info-banner">
+              ℹ️ Sign in to save your designs. You can still preview without an account.
+            </div>
+          )}
+          
           <div className="step-indicator">
             <div className={`step ${step >= 1 ? 'active' : ''}`}>1. Parameters</div>
             <div className={`step ${step >= 2 ? 'active' : ''}`}>2. Finishes</div>
@@ -140,7 +169,13 @@ function Designer() {
 
         {error && (
           <div className="error-banner">
-            {error}
+            ⚠️ {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="success-banner">
+            ✓ {success}
           </div>
         )}
 

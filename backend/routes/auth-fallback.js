@@ -1,31 +1,46 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const { auth } = require('../middleware/auth');
 const router = express.Router();
+
+// In-memory user storage for development (when MongoDB is not available)
+const users = new Map();
+
+// Helper to hash password (simple for development)
+const hashPassword = (password) => {
+  return Buffer.from(password).toString('base64');
+};
+
+const comparePassword = (password, hash) => {
+  return hashPassword(password) === hash;
+};
 
 // @route   POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
     const { fullName, email, password } = req.body;
 
-    // Validate input
     if (!fullName || !email || !password) {
       return res.status(400).json({ error: 'Please provide all required fields' });
     }
 
     // Check if user exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    if (users.has(email)) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    // Create new user
-    const user = new User({ fullName, email, password });
-    await user.save();
+    // Create user
+    const user = {
+      id: Date.now().toString(),
+      fullName,
+      email,
+      password: hashPassword(password),
+      createdAt: new Date()
+    };
+
+    users.set(email, user);
 
     // Generate token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, {
       expiresIn: '7d'
     });
 
@@ -33,7 +48,7 @@ router.post('/register', async (req, res) => {
       message: 'Registration successful',
       token,
       user: {
-        id: user._id,
+        id: user.id,
         fullName: user.fullName,
         email: user.email
       }
@@ -48,31 +63,23 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    console.log('Login attempt for email:', email);
-
-    // Validate input
     if (!email || !password) {
       return res.status(400).json({ error: 'Please provide email and password' });
     }
 
     // Find user
-    const user = await User.findOne({ email });
+    const user = users.get(email);
     if (!user) {
-      console.log('User not found:', email);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     // Check password
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      console.log('Password mismatch for user:', email);
+    if (!comparePassword(password, user.password)) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    console.log('Login successful for user:', email);
-
     // Generate token
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, {
       expiresIn: '7d'
     });
 
@@ -80,28 +87,9 @@ router.post('/login', async (req, res) => {
       message: 'Login successful',
       token,
       user: {
-        id: user._id,
+        id: user.id,
         fullName: user.fullName,
         email: user.email
-      }
-    });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// @route   GET /api/auth/me
-// @desc    Get current user
-// @access  Private
-router.get('/me', auth, async (req, res) => {
-  try {
-    res.json({
-      user: {
-        id: req.user._id,
-        fullName: req.user.fullName,
-        email: req.user.email,
-        createdAt: req.user.createdAt
       }
     });
   } catch (error) {
@@ -110,8 +98,6 @@ router.get('/me', auth, async (req, res) => {
 });
 
 // @route   POST /api/auth/verify
-// @desc    Verify token
-// @access  Public
 router.post('/verify', async (req, res) => {
   try {
     const { token } = req.body;
@@ -121,7 +107,15 @@ router.post('/verify', async (req, res) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId).select('-password');
+    
+    // Find user by ID
+    let user = null;
+    for (const [email, userData] of users.entries()) {
+      if (userData.id === decoded.userId) {
+        user = userData;
+        break;
+      }
+    }
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid token' });
@@ -130,7 +124,7 @@ router.post('/verify', async (req, res) => {
     res.json({
       valid: true,
       user: {
-        id: user._id,
+        id: user.id,
         fullName: user.fullName,
         email: user.email
       }
@@ -143,38 +137,51 @@ router.post('/verify', async (req, res) => {
   }
 });
 
-// @route   POST /api/auth/forgot-password
-router.post('/forgot-password', async (req, res) => {
+// @route   GET /api/auth/me
+router.get('/me', async (req, res) => {
   try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ error: 'Please provide email' });
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
     }
 
-    const user = await User.findOne({ email });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Find user
+    let user = null;
+    for (const [email, userData] of users.entries()) {
+      if (userData.id === decoded.userId) {
+        user = userData;
+        break;
+      }
+    }
+
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(401).json({ error: 'User not found' });
     }
 
-    // TODO: Send email with reset link
-    res.json({ message: 'Password reset link sent to your email' });
+    res.json({
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        createdAt: user.createdAt
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 // @route   POST /api/auth/logout
-// @desc    Logout user (client-side token removal)
-// @access  Private
-router.post('/logout', auth, async (req, res) => {
-  try {
-    // In a JWT system, logout is handled client-side by removing the token
-    // But we can log it or do additional cleanup here
-    res.json({ message: 'Logout successful' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+router.post('/logout', async (req, res) => {
+  res.json({ message: 'Logout successful' });
+});
+
+// @route   POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  res.json({ message: 'Password reset link sent to your email' });
 });
 
 module.exports = router;

@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Environment } from '@react-three/drei';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 import '../styles/FurnitureCustomizer.css';
 
 // Furniture Components
@@ -159,6 +162,9 @@ function Room({ furniture }) {
 }
 
 function FurnitureCustomizer() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  
   const [selectedRoom, setSelectedRoom] = useState('living');
   const [furniture, setFurniture] = useState({
     living: [
@@ -173,6 +179,40 @@ function FurnitureCustomizer() {
       { type: 'diningTable', position: [0, 0.2, 0] }
     ]
   });
+  
+  const [catalog, setCatalog] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [notification, setNotification] = useState(null);
+  const [selectedFurniture, setSelectedFurniture] = useState(null);
+  const [customizationOptions, setCustomizationOptions] = useState({
+    color: '',
+    material: '',
+    size: '',
+    quantity: 1
+  });
+  const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [selectedCatalogItems, setSelectedCatalogItems] = useState([]);
+
+  // Fetch furniture catalog
+  useEffect(() => {
+    fetchCatalog();
+  }, []);
+
+  const fetchCatalog = async () => {
+    try {
+      const response = await api.get('/furniture/catalog');
+      if (response.data.success) {
+        setCatalog(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching catalog:', error);
+    }
+  };
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   const furnitureOptions = {
     living: [
@@ -215,10 +255,183 @@ function FurnitureCustomizer() {
       ...prev,
       [selectedRoom]: []
     }));
+    showNotification('Room cleared', 'info');
+  };
+
+  const saveDesign = async () => {
+    if (!user) {
+      showNotification('Please sign in to save your design', 'error');
+      setTimeout(() => navigate('/signin'), 1500);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const designData = {
+        roomType: selectedRoom,
+        furniture: furniture[selectedRoom],
+        totalItems: furniture[selectedRoom].length
+      };
+
+      // For now, save as a simple customization
+      const response = await api.post('/furniture/customize', {
+        furnitureId: '1',
+        name: `${selectedRoom.charAt(0).toUpperCase() + selectedRoom.slice(1)} Room Design`,
+        color: 'custom',
+        material: 'mixed',
+        size: 'custom',
+        quantity: furniture[selectedRoom].length
+      });
+
+      if (response.data.success) {
+        showNotification('Design saved successfully!', 'success');
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+      showNotification(error.response?.data?.error || 'Failed to save design', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openCustomizeModal = (furnitureItem) => {
+    setSelectedFurniture(furnitureItem);
+    setCustomizationOptions({
+      color: furnitureItem.colors?.[0] || '',
+      material: furnitureItem.materials?.[0] || '',
+      size: furnitureItem.sizes?.[0] || '',
+      quantity: 1
+    });
+    setShowCustomizeModal(true);
+    
+    // Add to selected items if not already there
+    if (!selectedCatalogItems.find(item => item.id === furnitureItem.id)) {
+      setSelectedCatalogItems(prev => [...prev, furnitureItem]);
+    }
+  };
+
+  const removeSelectedItem = (itemId) => {
+    setSelectedCatalogItems(prev => prev.filter(item => item.id !== itemId));
+    showNotification('Item removed from selection', 'info');
+  };
+
+  const saveCustomization = async () => {
+    if (!user) {
+      showNotification('Please sign in to save customization', 'error');
+      setTimeout(() => navigate('/signin'), 1500);
+      return;
+    }
+
+    if (!selectedFurniture) return;
+
+    setLoading(true);
+    try {
+      const response = await api.post('/furniture/customize', {
+        furnitureId: selectedFurniture.id,
+        name: selectedFurniture.name,
+        ...customizationOptions
+      });
+
+      if (response.data.success) {
+        showNotification('Customization saved!', 'success');
+        setShowCustomizeModal(false);
+      }
+    } catch (error) {
+      console.error('Customization error:', error);
+      showNotification(error.response?.data?.error || 'Failed to save', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="customizer-container">
+      {/* Notification */}
+      {notification && (
+        <div className={`notification ${notification.type}`}>
+          {notification.message}
+        </div>
+      )}
+
+      {/* Customize Modal */}
+      {showCustomizeModal && selectedFurniture && (
+        <div className="modal-overlay" onClick={() => setShowCustomizeModal(false)}>
+          <div className="customize-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Customize {selectedFurniture.name}</h3>
+              <button className="modal-close" onClick={() => setShowCustomizeModal(false)}>✕</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="customize-option">
+                <label>Color</label>
+                <select 
+                  value={customizationOptions.color}
+                  onChange={(e) => setCustomizationOptions({...customizationOptions, color: e.target.value})}
+                >
+                  {selectedFurniture.colors?.map(color => (
+                    <option key={color} value={color}>{color}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="customize-option">
+                <label>Material</label>
+                <select 
+                  value={customizationOptions.material}
+                  onChange={(e) => setCustomizationOptions({...customizationOptions, material: e.target.value})}
+                >
+                  {selectedFurniture.materials?.map(material => (
+                    <option key={material} value={material}>{material}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="customize-option">
+                <label>Size</label>
+                <select 
+                  value={customizationOptions.size}
+                  onChange={(e) => setCustomizationOptions({...customizationOptions, size: e.target.value})}
+                >
+                  {selectedFurniture.sizes?.map(size => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="customize-option">
+                <label>Quantity</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="10"
+                  value={customizationOptions.quantity}
+                  onChange={(e) => setCustomizationOptions({...customizationOptions, quantity: parseInt(e.target.value)})}
+                />
+              </div>
+
+              <div className="price-display">
+                <span>Base Price:</span>
+                <span className="price">${selectedFurniture.basePrice}</span>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={() => setShowCustomizeModal(false)}>
+                Cancel
+              </button>
+              <button 
+                className="btn-save" 
+                onClick={saveCustomization}
+                disabled={loading}
+              >
+                {loading ? 'Saving...' : 'Save Customization'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <nav className="navbar">
         <div className="nav-brand">
           <span className="logo-icon">🏠</span>
@@ -226,9 +439,22 @@ function FurnitureCustomizer() {
         </div>
         <div className="nav-links">
           <a href="/" className="nav-link">Home</a>
+          <a href="/gallery" className="nav-link">Projects</a>
           <a href="/designer" className="nav-link">Designer</a>
+          <a href="/ai-designer" className="nav-link">AI Designer</a>
           <a href="/furniture-customizer" className="nav-link-active">Furniture</a>
           <a href="/viewer" className="nav-link">3D Viewer</a>
+          <a href="/services" className="nav-link">Services</a>
+          <a href="/about" className="nav-link">About</a>
+          <a href="/contact" className="nav-link">Contact</a>
+          {user ? (
+            <a href="/profile" className="nav-link">Profile</a>
+          ) : (
+            <>
+              <a href="/signin" className="nav-link-signin">Sign In</a>
+              <a href="/register" className="btn-nav-primary">Get Started Free</a>
+            </>
+          )}
         </div>
       </nav>
 
@@ -302,10 +528,73 @@ function FurnitureCustomizer() {
             <button className="clear-btn" onClick={clearRoom}>
               🗑️ Clear Room
             </button>
-            <button className="save-btn">
-              💾 Save Design
+            <button 
+              className="save-btn" 
+              onClick={saveDesign}
+              disabled={loading}
+            >
+              {loading ? '💾 Saving...' : '💾 Save Design'}
             </button>
           </div>
+
+          {/* Furniture Catalog */}
+          {catalog.length > 0 && (
+            <div className="control-section">
+              <h3>Furniture Catalog</h3>
+              <div className="catalog-list">
+                {catalog.map((item) => (
+                  <div key={item.id} className="catalog-item">
+                    <div className="catalog-info">
+                      <span className="catalog-name">{item.name}</span>
+                      <span className="catalog-price">${item.basePrice}</span>
+                    </div>
+                    <button
+                      className="customize-btn"
+                      onClick={() => openCustomizeModal(item)}
+                    >
+                      Customize
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Selected Furniture Items */}
+          {selectedCatalogItems.length > 0 && (
+            <div className="control-section">
+              <h3>Selected Items ({selectedCatalogItems.length})</h3>
+              <div className="selected-items-grid">
+                {selectedCatalogItems.map((item) => (
+                  <div key={item.id} className="selected-item-card">
+                    <div className="selected-item-image">
+                      <img src={item.image} alt={item.name} />
+                      <button
+                        className="remove-selected-btn"
+                        onClick={() => removeSelectedItem(item.id)}
+                        title="Remove"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="selected-item-info">
+                      <h4>{item.name}</h4>
+                      <p className="selected-item-price">${item.basePrice}</p>
+                      <div className="selected-item-tags">
+                        <span className="tag">{item.category}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="selected-items-total">
+                <span>Total:</span>
+                <span className="total-price">
+                  ${selectedCatalogItems.reduce((sum, item) => sum + item.basePrice, 0)}
+                </span>
+              </div>
+            </div>
+          )}
 
           <div className="control-section">
             <h3>Controls</h3>

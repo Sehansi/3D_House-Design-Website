@@ -1,32 +1,92 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import '../styles/Profile.css';
 
 function Profile() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const { user, token, logout, isAuthenticated } = useAuth();
+  const [designs, setDesigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('designs');
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-    
-    if (!token) {
+    if (!isAuthenticated) {
       navigate('/signin');
       return;
     }
+    
+    fetchUserDesigns();
+  }, [isAuthenticated, navigate]);
 
-    if (userData) {
-      setUser(JSON.parse(userData));
+  const fetchUserDesigns = async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/designs/my-designs', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setDesigns(data.designs || []);
+      } else {
+        setError(data.message || 'Failed to load designs');
+      }
+    } catch (err) {
+      setError('Failed to connect to server');
+      console.error('Error fetching designs:', err);
+    } finally {
+      setLoading(false);
     }
-  }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/signin');
   };
 
-  if (!user) return <div>Loading...</div>;
+  const handleDeleteDesign = async (designId) => {
+    if (!window.confirm('Are you sure you want to delete this design?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/designs/${designId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        setDesigns(designs.filter(d => d._id !== designId));
+      } else {
+        const data = await response.json();
+        alert(data.message || 'Failed to delete design');
+      }
+    } catch (err) {
+      alert('Failed to delete design');
+    }
+  };
+
+  const handleViewDesign = (design) => {
+    navigate('/viewer', { state: { design } });
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  if (!user) return (
+    <div className="loading-container">
+      <div className="loading-spinner"></div>
+      <p>Loading...</p>
+    </div>
+  );
 
   return (
     <div className="profile-container">
@@ -57,42 +117,100 @@ function Profile() {
         <div className="profile-card">
           <div className="profile-avatar">
             <div className="avatar-circle">
-              {user.name?.charAt(0).toUpperCase()}
+              {user.fullName?.charAt(0).toUpperCase() || 'U'}
             </div>
           </div>
           
           <div className="profile-info">
-            <h2>{user.name}</h2>
+            <h2>{user.fullName}</h2>
             <p className="profile-email">{user.email}</p>
           </div>
 
           <div className="profile-stats">
             <div className="stat">
-              <h3>0</h3>
-              <p>Projects</p>
-            </div>
-            <div className="stat">
-              <h3>0</h3>
+              <h3>{designs.length}</h3>
               <p>Designs</p>
             </div>
             <div className="stat">
               <h3>Member</h3>
               <p>Status</p>
             </div>
+            <div className="stat">
+              <h3>Active</h3>
+              <p>Account</p>
+            </div>
           </div>
 
           <div className="profile-actions">
-            <button className="edit-btn">Edit Profile</button>
+            <button className="edit-btn" onClick={() => setActiveTab('settings')}>Edit Profile</button>
             <button className="logout-btn" onClick={handleLogout}>Logout</button>
           </div>
         </div>
 
         <div className="profile-projects">
-          <h2>My Projects</h2>
-          <div className="empty-state">
-            <p>No projects yet. Start creating your dream home design!</p>
-            <button className="create-btn">Create New Project</button>
+          <div className="projects-header">
+            <h2>My Designs</h2>
+            <button className="create-btn" onClick={() => navigate('/designer')}>
+              + Create New Design
+            </button>
           </div>
+
+          {loading ? (
+            <div className="loading-state">
+              <div className="loading-spinner"></div>
+              <p>Loading your designs...</p>
+            </div>
+          ) : error ? (
+            <div className="error-state">
+              <p>⚠️ {error}</p>
+              <button onClick={fetchUserDesigns}>Retry</button>
+            </div>
+          ) : designs.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📐</div>
+              <p>No designs yet. Start creating your dream home design!</p>
+              <button className="create-btn" onClick={() => navigate('/designer')}>
+                Create Your First Design
+              </button>
+            </div>
+          ) : (
+            <div className="designs-grid">
+              {designs.map(design => (
+                <div key={design._id} className="design-card">
+                  <div className="design-preview">
+                    <div className="design-placeholder">
+                      <span className="design-icon">🏠</span>
+                    </div>
+                  </div>
+                  <div className="design-info">
+                    <h3>{design.name}</h3>
+                    <div className="design-details">
+                      <span>🛏️ {design.parameters.bedrooms} Beds</span>
+                      <span>🚿 {design.parameters.bathrooms} Baths</span>
+                      <span>📐 {design.parameters.totalArea} sq ft</span>
+                    </div>
+                    <p className="design-date">
+                      Created: {new Date(design.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="design-actions">
+                    <button 
+                      className="view-btn"
+                      onClick={() => handleViewDesign(design)}
+                    >
+                      👁️ View
+                    </button>
+                    <button 
+                      className="delete-btn"
+                      onClick={() => handleDeleteDesign(design._id)}
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

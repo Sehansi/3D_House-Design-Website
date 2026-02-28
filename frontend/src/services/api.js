@@ -1,5 +1,62 @@
 const API_URL = 'http://localhost:5000/api';
 
+const api = {
+  get: async (endpoint) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Request failed');
+    }
+    
+    return response.json();
+  },
+
+  post: async (endpoint, data) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      },
+      body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Request failed');
+    }
+    
+    return response.json();
+  },
+
+  delete: async (endpoint) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Request failed');
+    }
+    
+    return response.json();
+  }
+};
+
 export const authAPI = {
   login: async (email, password) => {
     const response = await fetch(`${API_URL}/auth/login`, {
@@ -55,3 +112,24 @@ export const authAPI = {
     return data;
   },
 };
+
+export const favoritesAPI = {
+  getFavorites: async () => {
+    return api.get('/favorites');
+  },
+
+  toggleFavorite: async (designId) => {
+    return api.post(`/favorites/toggle/${designId}`);
+  },
+
+  addFavorite: async (designId) => {
+    return api.post(`/favorites/${designId}`);
+  },
+
+  removeFavorite: async (designId) => {
+    return api.delete(`/favorites/${designId}`);
+  }
+};
+
+
+export default api;

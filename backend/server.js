@@ -7,24 +7,46 @@ dotenv.config();
 
 const app = express();
 
-// Connect to MongoDB (optional for gallery)
-connectDB().catch(err => {
-  console.log('MongoDB connection failed, continuing without database:', err.message);
-});
+// Try to connect to MongoDB
+let mongoConnected = false;
+connectDB()
+  .then((connected) => {
+    mongoConnected = connected;
+    console.log(mongoConnected ? 'MongoDB connected' : 'Using fallback storage');
+  })
+  .catch(() => {
+    console.log('Using in-memory storage (MongoDB unavailable)');
+  });
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use('/api/auth', require('./routes/auth'));
+// Routes - Use fallback if MongoDB not available
+setTimeout(() => {
+  if (mongoConnected) {
+    app.use('/api/auth', require('./routes/auth'));
+    app.use('/api/favorites', require('./routes/favorites'));
+  } else {
+    app.use('/api/auth', require('./routes/auth-fallback'));
+    app.use('/api/favorites', require('./routes/favorites-fallback'));
+  }
+}, 1000);
+
 app.use('/api/designs', require('./routes/designs'));
 app.use('/api/gallery', require('./routes/gallery'));
+app.use('/api/contact', require('./routes/contact'));
+app.use('/api/ai-designer', require('./routes/ai-designer'));
+app.use('/api/furniture', require('./routes/furniture'));
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: '3D House Design API is running' });
+  res.json({ 
+    status: 'OK', 
+    message: '3D House Design API is running',
+    database: mongoConnected ? 'MongoDB' : 'In-Memory'
+  });
 });
 
 const PORT = process.env.PORT || 5000;

@@ -19,6 +19,9 @@ const userSchema = new mongoose.Schema({
     required: true,
     minlength: 6
   },
+  favorites: [{
+    type: Number
+  }],
   createdAt: {
     type: Date,
     default: Date.now

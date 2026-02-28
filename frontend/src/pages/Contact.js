@@ -6,21 +6,49 @@ function Contact() {
     name: '',
     email: '',
     phone: '',
+    subject: '',
     message: ''
   });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
+    setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Contact form submitted:', formData);
-    alert('Thank you for contacting us! We will get back to you soon.');
-    setFormData({ name: '', email: '', phone: '', message: '' });
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch('http://localhost:5000/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccess(data.message);
+        setFormData({ name: '', email: '', phone: '', subject: '', message: '' });
+      } else {
+        setError(data.error || 'Failed to send message');
+      }
+    } catch (err) {
+      setError('Failed to connect to server. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -69,6 +97,19 @@ function Contact() {
 
         <form className="contact-form" onSubmit={handleSubmit}>
           <h2>Send Message</h2>
+          
+          {success && (
+            <div className="success-message">
+              ✓ {success}
+            </div>
+          )}
+          
+          {error && (
+            <div className="error-message">
+              ⚠️ {error}
+            </div>
+          )}
+          
           <input
             type="text"
             name="name"
@@ -76,6 +117,7 @@ function Contact() {
             value={formData.name}
             onChange={handleChange}
             required
+            disabled={loading}
           />
           <input
             type="email"
@@ -84,13 +126,23 @@ function Contact() {
             value={formData.email}
             onChange={handleChange}
             required
+            disabled={loading}
           />
           <input
             type="tel"
             name="phone"
-            placeholder="Phone Number"
+            placeholder="Phone Number (Optional)"
             value={formData.phone}
             onChange={handleChange}
+            disabled={loading}
+          />
+          <input
+            type="text"
+            name="subject"
+            placeholder="Subject"
+            value={formData.subject}
+            onChange={handleChange}
+            disabled={loading}
           />
           <textarea
             name="message"
@@ -99,8 +151,11 @@ function Contact() {
             onChange={handleChange}
             rows="5"
             required
+            disabled={loading}
           ></textarea>
-          <button type="submit">Send Message</button>
+          <button type="submit" disabled={loading}>
+            {loading ? 'Sending...' : 'Send Message'}
+          </button>
         </form>
       </div>
 

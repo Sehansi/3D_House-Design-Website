@@ -159,6 +159,46 @@
   overflow: hidden;
 }
 
+.favorite-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+.favorite-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: #00d9ff;
+  transform: scale(1.1);
+}
+
+.favorite-btn.active {
+  background: rgba(255, 0, 80, 0.2);
+  border-color: #ff0050;
+  animation: heartBeat 0.3s ease;
+}
+
+@keyframes heartBeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
 .gallery-image-container img {
   width: 100%;
   height: 280px;
@@ -681,6 +721,17 @@
   background: rgba(255, 255, 255, 0.15);
   border-color: #00d9ff;
   transform: translateY(-3px);
+}
+
+.btn-secondary.active {
+  background: rgba(255, 0, 80, 0.2);
+  border-color: #ff0050;
+  color: #ff0050;
+}
+
+.btn-secondary.active:hover {
+  background: rgba(255, 0, 80, 0.3);
+  border-color: #ff0050;
 }
 
 /* Responsive Modal */

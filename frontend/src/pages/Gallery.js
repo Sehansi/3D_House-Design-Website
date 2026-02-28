@@ -1,8 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { favoritesAPI } from '../services/api';
 import '../styles/Gallery.css';
 
 function Gallery() {
+  // Check if user is logged in from localStorage
+  const [user, setUser] = useState(null);
+  
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      // User is logged in
+      setUser({ token });
+    }
+  }, []);
   const [selectedDesign, setSelectedDesign] = useState(null);
+  const [favorites, setFavorites] = useState([]);
   const [designs] = useState([
     { 
       id: 1, 
@@ -240,8 +252,56 @@ function Gallery() {
 
   const [filter, setFilter] = useState('All');
 
-  const filteredDesigns = filter === 'All' 
-    ? designs 
+  useEffect(() => {
+    if (user) {
+      loadFavorites();
+    }
+  }, [user]);
+
+  const loadFavorites = async () => {
+    try {
+      const response = await favoritesAPI.getFavorites();
+      if (response.success) {
+        setFavorites(response.favorites || []);
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+    }
+  };
+
+  const handleToggleFavorite = async (designId) => {
+    if (!user) {
+      alert('Please sign in to save favorites');
+      window.location.href = '/signin';
+      return;
+    }
+
+    try {
+      const response = await favoritesAPI.toggleFavorite(designId);
+      if (response.success) {
+        setFavorites(response.favorites || []);
+      } else {
+        alert(response.message || 'Failed to update favorites');
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      if (error.message.includes('401') || error.message.includes('token')) {
+        alert('Please sign in again');
+        window.location.href = '/signin';
+      } else {
+        alert('Failed to update favorites: ' + error.message);
+      }
+    }
+  };
+
+  const isFavorite = (designId) => {
+    return favorites.includes(designId);
+  };
+
+  const filteredDesigns = filter === 'All'
+    ? designs
+    : filter === 'Favorites'
+    ? designs.filter(design => isFavorite(design.id))
     : designs.filter(design => design.category === filter);
 
   const openModal = (design) => {
@@ -288,6 +348,14 @@ function Gallery() {
         >
           All
         </button>
+        {user && (
+          <button 
+            className={filter === 'Favorites' ? 'active' : ''} 
+            onClick={() => setFilter('Favorites')}
+          >
+            ❤️ Favorites
+          </button>
+        )}
         <button 
           className={filter === 'Exterior' ? 'active' : ''} 
           onClick={() => setFilter('Exterior')}
@@ -319,6 +387,16 @@ function Gallery() {
                   e.target.src = design.fallback;
                 }}
               />
+              <button 
+                className={`favorite-btn ${isFavorite(design.id) ? 'active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleFavorite(design.id);
+                }}
+                title={isFavorite(design.id) ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                {isFavorite(design.id) ? '❤️' : '🤍'}
+              </button>
               <div className="gallery-overlay">
                 <button className="view-btn" onClick={() => openModal(design)}>View Details</button>
               </div>
@@ -437,8 +515,12 @@ function Gallery() {
                   <button className="btn-primary">
                     <span>🚀</span> Start Similar Design
                   </button>
-                  <button className="btn-secondary">
-                    <span>❤️</span> Save to Favorites
+                  <button 
+                    className={`btn-secondary ${isFavorite(selectedDesign.id) ? 'active' : ''}`}
+                    onClick={() => handleToggleFavorite(selectedDesign.id)}
+                  >
+                    <span>{isFavorite(selectedDesign.id) ? '❤️' : '🤍'}</span> 
+                    {isFavorite(selectedDesign.id) ? 'Saved' : 'Save to Favorites'}
                   </button>
                   <button className="btn-secondary">
                     <span>📤</span> Share Design
