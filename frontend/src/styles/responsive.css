@@ -1,0 +1,110 @@
+/* Universal Responsive Overrides */
+@media screen and (max-width: 1024px) {
+  /* Scale down padding for main sections */
+  section, .container, .main-content, .page-container, .hero-section {
+    padding-left: 5% !important;
+    padding-right: 5% !important;
+  }
+}
+
+@media screen and (max-width: 900px) {
+  /* Navbar Overrides */
+  .navbar {
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 15px !important;
+    gap: 15px !important;
+  }
+  .nav-links {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    gap: 10px !important;
+  }
+  .nav-link, .nav-link-active, .nav-link-signin, .btn-nav-primary {
+    font-size: 14px !important;
+    padding: 8px 12px !important;
+  }
+
+  /* Grid flatteners for standard grid layouts globally */
+  .hero-content, 
+  .about-content, 
+  .contact-content,
+  .projects-grid, 
+  .features-grid,
+  .fc-hero,
+  .fc-features,
+  .designer-grid,
+  .auth-content,
+  .services-grid,
+  .gallery-grid {
+    grid-template-columns: 1fr !important;
+    flex-direction: column !important;
+  }
+
+  /* Footer Overrides */
+  .footer-content {
+    flex-direction: column !important;
+    text-align: center !important;
+    gap: 20px !important;
+  }
+  .footer-social {
+    justify-content: center !important;
+  }
+}
+
+@media screen and (max-width: 600px) {
+  /* Smaller mobile typography */
+  h1, .hero-title, .viewer-header h1 {
+    font-size: 2.2rem !important;
+  }
+  h2, .section-title {
+    font-size: 1.8rem !important;
+  }
+  h3 {
+    font-size: 1.4rem !important;
+  }
+  p, .hero-subtitle, .description {
+    font-size: 1rem !important;
+  }
+  
+  /* Buttons */
+  button, .btn-primary, .btn-secondary, .btn-cta, .btn-hero-primary, .btn-hero-secondary {
+    width: 100% !important;
+    margin-bottom: 10px !important;
+    box-sizing: border-box !important;
+  }
+  .hero-buttons, .cta-buttons {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  /* Stats and mini grids */
+  .hero-stats,
+  .fc-room-grid,
+  .fc-scheme-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    flex-wrap: wrap !important;
+    column-gap: 10px !important;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .hero-title, .viewer-header h1 {
+    font-size: 1.8rem !important;
+  }
+  /* Fallback for everything else */
+  .fc-room-grid,
+  .fc-scheme-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .hero-stats {
+    flex-direction: column !important;
+  }
+}
+
+/* Base image & video responsiveness to prevent structural breakages */
+img, video {
+  max-width: 100% !important;
+  height: auto ;
+}

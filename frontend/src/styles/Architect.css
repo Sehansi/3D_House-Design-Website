@@ -1,0 +1,192 @@
+.architect-dashboard-container {
+  min-height: 100vh;
+  background: radial-gradient(circle at top left, #0a0b10, #030612);
+  color: white;
+  font-family: 'Inter', sans-serif;
+  padding: 40px 20px;
+}
+
+.architect-glass-panel {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  padding: 30px;
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.architect-glass-panel:hover {
+  transform: translateY(-5px);
+  border-color: rgba(0, 217, 255, 0.2);
+}
+
+.architect-header {
+  max-width: 1200px;
+  margin: 0 auto 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.architect-header h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin: 0;
+  background: linear-gradient(90deg, #ffffff, #00d9ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.architect-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 30px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.stat-icon {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  border-radius: 15px;
+  background: rgba(0, 217, 255, 0.1);
+  color: #00d9ff;
+}
+
+.stat-details h3 {
+  font-size: 1.8rem;
+  margin: 0 0 5px 0;
+}
+
+.stat-details p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
+}
+
+.workstation-container {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 30px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.blueprint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.blueprint-item {
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.blueprint-item:hover {
+  background: rgba(0, 217, 255, 0.1);
+}
+
+.viewer-area {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 20px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.meeting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.meeting-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 30px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 4px solid #00d9ff;
+  border-radius: 12px;
+}
+
+.meeting-info h4 {
+  margin: 0 0 5px 0;
+  font-size: 1.2rem;
+}
+
+.meeting-info p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
+}
+
+.meeting-actions button {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(0, 217, 255, 0.1);
+  color: #00d9ff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.meeting-actions button:hover {
+  background: #00d9ff;
+  color: #000;
+}
+
+/* Tab Navigation */
+.arch-nav-tabs {
+  max-width: 1200px;
+  margin: 0 auto 30px;
+  display: flex;
+  gap: 15px;
+}
+
+.arch-tab-btn {
+  padding: 12px 25px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.arch-tab-btn.active {
+  background: #00d9ff;
+  color: black;
+}
+
+.arch-tab-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 900px) {
+  .workstation-container {
+    grid-template-columns: 1fr;
+  }
+}

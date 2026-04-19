@@ -1,0 +1,257 @@
+/* ═══════════════════════════════════════════════════════════
+   FurniVision - Studio Edition (Inspired by Furniture App)
+   Glassmorphism, Neon Accents, Futuristic HUD
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  --accent: #0d9488; /* Deep Teal */
+  --accent-alt: #059669; /* Emerald Green */
+  --bg-dark: #020617;
+  --panel-bg: rgba(10, 15, 25, 0.7);
+  --border-light: rgba(255, 255, 255, 0.08);
+  --text-dim: rgba(255, 255, 255, 0.35);
+  --font-main: 'Segoe UI', system-ui, sans-serif;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background-color: var(--bg-dark);
+  color: white;
+  font-family: var(--font-main);
+}
+
+.fc-wrap {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(circle at 50% 50%, #0f172a 0%, #020617 100%);
+  overflow-x: hidden;
+}
+
+/* ── HUD Elements ── */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.fc-notif {
+  position: fixed; top: 30px; right: 30px;
+  padding: 14px 24px; border-radius: 16px;
+  font-weight: 700; font-size: 0.85rem; z-index: 2000;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  background: var(--accent); color: white;
+  border: 1px solid rgba(255,255,255,0.2);
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+}
+
+/* ── Layout ── */
+.studio-layout {
+  display: flex;
+  flex: 1;
+  height: calc(100vh - 68px);
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.sidebar-header { padding: 32px; }
+.brand-title { font-size: 1.5rem; font-weight: 900; letter-spacing: -0.01em; color: white; display: flex; align-items: center; gap: 12px; }
+.brand-sub { font-size: 0.65rem; font-weight: 800; color: var(--accent); letter-spacing: 0.3em; text-transform: uppercase; display: block; margin-top: 4px; }
+
+.tab-nav { padding: 0 24px; margin-bottom: 24px; }
+.tab-container { display: flex; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 16px; border: 1px solid var(--border-light); }
+.tab-btn {
+  flex: 1; padding: 10px; border: none; background: transparent;
+  color: var(--text-dim); font-size: 0.65rem; font-weight: 900;
+  cursor: pointer; border-radius: 12px; transition: all 0.2s;
+  letter-spacing: 0.1em;
+}
+.tab-btn.active { background: rgba(255,255,255,0.1); color: white; }
+
+.sidebar-content { flex: 1; overflow-y: auto; padding: 0 24px 24px; }
+.section-label { font-size: 0.65rem; font-weight: 900; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.2em; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+
+/* Catalog Cards */
+.catalog-card {
+  display: flex; align-items: center; gap: 16px; padding: 14px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 20px; transition: all 0.2s; cursor: pointer; margin-bottom: 12px;
+}
+.catalog-card:hover { background: rgba(59, 130, 246, 0.08); border-color: var(--accent); transform: translateX(4px); }
+.catalog-icon { width: 50px; height: 50px; border-radius: 14px; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; border: 1px solid var(--border-light); }
+.catalog-info h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 2px; }
+.catalog-info span { font-size: 0.65rem; font-weight: 800; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* Main Workspace */
+.workspace {
+  flex: 1; position: relative; display: flex; flex-direction: column;
+  background: #0a0c10; overflow: hidden;
+}
+
+.view-selector {
+  position: absolute; top: 30px; left: 50%; transform: translateX(-50%);
+  display: flex; background: rgba(0,0,0,0.4); padding: 5px; border-radius: 40px;
+  border: 1px solid var(--border-light); backdrop-filter: blur(10px); z-index: 100;
+}
+.view-btn {
+  padding: 10px 24px; border: none; border-radius: 30px;
+  background: transparent; color: var(--text-dim); font-weight: 700;
+  font-size: 0.75rem; cursor: pointer; transition: all 0.3s;
+  display: flex; align-items: center; gap: 10px;
+}
+.view-btn.active { background: var(--accent); color: white; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
+
+/* SVG 2D Canvas */
+.canvas-2d-wrap {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  padding: 60px; pointer-events: auto;
+}
+.svg-canvas {
+  background: #0f1218; box-shadow: 0 50px 100px rgba(0,0,0,0.6);
+  border-radius: 40px; border: 1px solid var(--border-light);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 3D Viewer Area */
+.canvas-3d-wrap { width: 100%; height: 100%; pointer-events: auto; }
+
+/* HUD Displays */
+.hud-bottom {
+  position: absolute; bottom: 40px; left: 40px;
+  display: flex; gap: 40px; padding: 20px 32px;
+  border-radius: 40px; z-index: 50;
+}
+.hud-item { display: flex; align-items: center; gap: 16px; }
+.hud-icon { width: 44px; height: 44px; border-radius: 14px; background: rgba(59, 130, 246, 0.1); color: var(--accent); display: flex; align-items: center; justify-content: center; }
+.hud-meta span:first-child { display: block; font-size: 0.55rem; font-weight: 900; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 2px; }
+.hud-meta span:last-child { font-size: 0.8rem; font-weight: 900; color: white; letter-spacing: 0.05em; }
+
+.hud-divider { width: 1px; height: 32px; background: var(--border-light); align-self: center; }
+
+/* Control Gizmo - Floating */
+.selection-toolbar {
+  position: absolute; display: flex; gap: 8px; padding: 10px; border-radius: 20px;
+  z-index: 200; border: 1px solid var(--border-light);
+  transform: translate(-50%, -100%); margin-top: -60px; pointer-events: auto;
+  animation: slideUpFade 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+  background: rgba(0,0,0,0.4);
+}
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translate(-50%, -80%); }
+  to { opacity: 1; transform: translate(-50%, -100%); }
+}
+.tool-btn {
+  width: 40px; height: 40px; border-radius: 12px; border: 1px solid transparent;
+  background: rgba(255,255,255,0.05); color: var(--text-dim);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s;
+}
+.tool-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+.tool-btn.danger:hover { background: #ef4444; color: white; }
+.tool-btn.primary:hover { background: var(--accent); color: white; }
+
+/* Room Params */
+.param-group { background: rgba(255,255,255,0.03); padding: 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 24px; }
+.param-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.param-input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-light); padding: 10px; color: white; font-weight: 700; border-radius: 12px; outline: none; transition: var(--transition); }
+.param-input:focus { border-color: var(--accent); background: rgba(0,0,0,0.5); box-shadow: 0 0 15px rgba(13, 148, 136, 0.2); }
+
+.fc-save-btn {
+  width: 100%; margin-top: 20px; padding: 16px; border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-alt));
+  color: white; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+  border: 1px solid rgba(255,255,255,0.1); cursor: pointer;
+  transition: var(--transition); box-shadow: 0 10px 20px rgba(13, 148, 136, 0.2);
+}
+.fc-save-btn:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(13, 148, 136, 0.3); filter: brightness(1.1); }
+.fc-save-btn:active { transform: translateY(0); filter: brightness(0.9); }
+
+/* Animation Classes */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow { animation: spin-slow 12s linear infinite; }
+
+/* ── Responsive Modifications ── */
+
+@media (max-width: 1024px) {
+  .studio-layout {
+    flex-direction: column;
+    height: auto;
+    overflow-y: auto;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .workspace {
+    height: 500px;
+    min-height: auto;
+  }
+
+  .hud-bottom {
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    gap: 20px;
+    justify-content: space-around;
+  }
+
+  .hud-divider { display: none; }
+  
+  .hud-item { gap: 10px; }
+  .hud-icon { width: 36px; height: 36px; }
+  .hud-meta span:last-child { font-size: 0.65rem; }
+
+  .view-selector {
+    top: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .brand-title { font-size: 1.1rem; }
+  .fc-nav { padding: 0 16px; }
+  .tab-btn { font-size: 0.55rem; padding: 8px; }
+  
+  .canvas-2d-wrap { padding: 40px; }
+  
+  .hud-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    border-radius: 20px;
+  }
+  
+  .catalog-card { padding: 10px; }
+  .catalog-icon { width: 40px; height: 40px; font-size: 1.4rem; }
+  .catalog-info h4 { font-size: 0.75rem; }
+  
+  .sidebar-header { padding: 24px; }
+  
+  .fc-page { padding: 30px 20px; }
+  .fc-page h1 { font-size: 1.8rem !important; }
+}
+
+/* Blueprint Grid Patterns */
+.mesh-bg {
+  background-image: linear-gradient(rgba(13, 148, 136, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(13, 148, 136, 0.08) 1px, transparent 1px);
+  background-size: 50px 50px;
+}

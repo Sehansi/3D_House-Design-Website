@@ -1,0 +1,85 @@
+.constructor-container {
+  min-height: 100vh;
+  padding: 50px 80px;
+  background: radial-gradient(circle at top right, rgba(255, 149, 0, 0.05) 0%, transparent 40%),
+              #080c1d;
+  color: #c9d1d9;
+}
+
+.constructor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 50px;
+}
+
+.header-info h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #fff 0%, #ff9500 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Layout Grid */
+.constructor-layout {
+  display: grid;
+  grid-template-columns: 2.5fr 1fr;
+  gap: 30px;
+}
+
+.glass-section {
+  padding: 35px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Marketplace Matrix */
+.marketplace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 25px;
+}
+
+.marketplace-card-modern {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 25px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 149, 0, 0.1);
+  transition: all 0.3s;
+}
+
+.marketplace-card-modern:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #ff9500;
+  transform: translateY(-5px);
+}
+
+.card-top { display: flex; gap: 15px; margin-bottom: 20px; }
+.design-thumb { width: 45px; height: 45px; background: rgba(255, 149, 0, 0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+
+.design-meta h3 { font-size: 1.05rem; color: #fff; margin-bottom: 2px; }
+.design-meta p { font-size: 0.8rem; opacity: 0.5; }
+
+.card-actions { display: flex; gap: 10px; }
+.btn-technical, .btn-bid { flex: 1; padding: 10px; border-radius: 10px; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: 0.3s; }
+
+.btn-technical { background: transparent; border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; }
+.btn-technical:hover { border-color: #fff; }
+
+.btn-bid { background: #ff9500; border: none; color: #000; }
+.btn-bid:hover { background: #fff; transform: scale(1.05); }
+
+/* Sidebar Utilities */
+.utility-stack { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+.utility-item { padding: 20px; background: rgba(255, 255, 255, 0.03); border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05); }
+.utility-item h4 { color: #ff9500; margin-bottom: 8px; font-size: 0.95rem; }
+.utility-item p { font-size: 0.85rem; opacity: 0.5; }
+
+@media (max-width: 1024px) {
+  .constructor-layout { grid-template-columns: 1fr; }
+}
