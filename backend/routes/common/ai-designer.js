@@ -1,9 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { spawn } = require('child_process');
 const { auth } = require('../../middleware/auth');
 const AIDesign = require('../../models/AIDesign');
-const { generate3DLayout, generate3DLayoutWithFallback, extractFloorPlanFromImage } = require('../../utils/geminiService');
+const { generate3DLayout, generate3DLayoutWithFallback, extractFloorPlanFromImage, cleanYoloOutputWithGemini } = require('../../utils/geminiService');
 
 // Configure multer for PDF and Image uploads
 const storage = multer.memoryStorage();
@@ -335,64 +339,296 @@ router.post('/refine', async (req, res) => {
 });
 
 // @route   POST /api/ai-designer/upload-plan
-// @desc    Upload floor plan PDF/Image → Gemini Vision reads it → returns full
-//          furnished 3D layout (same rooms[] format as text-to-3D).
+// @desc    Upload floor plan PDF/Image → YOLO model (best.pt) detects walls/rooms
+//          → returns walls (segments) to prevent the HouseModel3D doodle bug
 // @access  Public
 router.post('/upload-plan', upload.single('pdf'), async (req, res) => {
+  let tempFilePath = null;
+
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Please upload a floor plan (PDF or Image)' });
     }
 
     const { style = 'modern' } = req.body;
+
+    // ── 1. Save uploaded buffer to a temp file ──────────────────────────────
+    const ext = path.extname(req.file.originalname).toLowerCase() || '.png';
+    tempFilePath = path.join(os.tmpdir(), `floorplan_${Date.now()}${ext}`);
+    fs.writeFileSync(tempFilePath, req.file.buffer);
+
+    console.log(`🏗️  Processing floor plan with trained YOLO model: ${req.file.originalname}`);
+
+    // ── 2. Run plan_to_3d.py ────────────────────────────────────────────────
+    const scriptPath = path.join(__dirname, '../../python/plan_to_3d.py');
+
+    const yoloResult = await new Promise((resolve, reject) => {
+      const py = spawn('python', [scriptPath, tempFilePath], {
+        cwd: path.join(__dirname, '../../python'),
+      });
+
+      let stdout = '';
+      let stderr = '';
+      py.stdout.on('data', d => { stdout += d.toString(); });
+      py.stderr.on('data', d => { stderr += d.toString(); });
+
+      py.on('close', code => {
+        if (stderr) console.warn('⚠️  Python stderr:', stderr.slice(0, 500));
+        try {
+          const startIdx = stdout.indexOf('{');
+          const endIdx = stdout.lastIndexOf('}');
+          if (startIdx === -1 || endIdx === -1) throw new Error('No JSON object found in output');
+          const jsonStr = stdout.substring(startIdx, endIdx + 1);
+          resolve(JSON.parse(jsonStr));
+        } catch (e) {
+          reject(new Error(`Python script output parse failed (exit ${code}): ${e.message}\nOutput: ${stdout.slice(0, 300)}`));
+        }
+      });
+
+      py.on('error', err => reject(new Error(`Could not start Python: ${err.message}`)));
+    });
+
+    if (!yoloResult.success) {
+      throw new Error(yoloResult.error || 'YOLO detection failed');
+    }
+
+    // ── 3. Hybrid AI Pipeline (Vision Mode) ─────────
+    console.log(`🧠 Hybrid AI Pipeline: Executing Vision Reconstruction...`);
     const base64Image = req.file.buffer.toString('base64');
+    let cleanedData;
+    
+    try {
+      // Use the stable Vision call from geminiService
+      cleanedData = await extractFloorPlanFromImage(base64Image);
+      console.log(`✅ Vision Reconstruction Complete: ${cleanedData.rooms?.length || 0} rooms identified.`);
+    } catch (hybridErr) {
+      console.error(`⚠️ Vision Failed, falling back to YOLO layout:`, hybridErr.message);
 
-    console.log('📄 Processing floor plan with 👁️ Gemini Vision:', req.file.originalname);
+      // Convert YOLO's centerX/centerZ/length/rotation → {start, end} format for the Heuristic Enforcer
+      const yoloWallsConverted = (yoloResult.walls || []).map(w => {
+        const cx = w.centerX || 0;
+        const cz = w.centerZ || 0;
+        const len = (w.length || 0) / 2;
+        const rot = w.rotation || 0;
+        return {
+          start: [cx - Math.cos(rot) * len, cz - Math.sin(rot) * len],
+          end:   [cx + Math.cos(rot) * len, cz + Math.sin(rot) * len],
+        };
+      });
 
-    // Call Gemini Vision — now returns { style, rooms[] } layout
-    const aiResult = await extractFloorPlanFromImage(base64Image);
-
-    console.log('👁️ Vision result keys:', Object.keys(aiResult));
-
-    // Validate — Gemini must return rooms array
-    let rooms = aiResult.rooms || [];
-
-    // If vision returned old-style walls instead of rooms, convert to rooms
-    if (rooms.length === 0 && (aiResult.walls || []).length > 0) {
-      console.warn('⚠️ Vision returned walls format — converting to rooms layout');
-      rooms = convertWallsToRooms(aiResult.walls || [], aiResult.rooms || []);
+      cleanedData = {
+        walls: yoloWallsConverted,
+        rooms: [
+          { type: 'living room', size: [15, 3, 15], position: [0, 0, 0] },
+          { type: 'bedroom',     size: [10, 3, 10], position: [12.5, 0, 0] },
+          { type: 'kitchen',     size: [10, 3, 10], position: [0, 0, 12.5] },
+          { type: 'bathroom',    size: [5, 3, 5],   position: [7.5, 0, 7.5] },
+        ]
+      };
     }
 
-    // Final fallback — generate generic rooms if still empty
-    if (rooms.length === 0) {
-      console.warn('⚠️ Vision returned no rooms — using fallback layout');
-      rooms = [
-        { type: 'living room', size: [5, 3, 5], position: [0, 0, 0] },
-        { type: 'kitchen',     size: [4, 3, 4], position: [5, 0, 0] },
-        { type: 'bedroom',     size: [4, 3, 4], position: [0, 0, -5] },
-        { type: 'bathroom',    size: [2.5, 3, 3], position: [4, 0, -5] },
-      ];
+    // Convert Gemini's rooms (centroid OR full size/pos) to final format for AIDesignRenderer
+    const filteredRooms = (cleanedData.rooms || []).filter(r => {
+      if (!r.size) return false;
+      const area = r.size[0] * r.size[2];
+      return area >= 1; // Stop filtering out standard 5x5 or 4x4 rooms
+    });
+
+    const finalRooms = filteredRooms.map(r => {
+      // Use provided size/position if available (new Gemini format)
+      if (r.size && r.position) {
+        return {
+          type: r.type || 'room',
+          name: r.type || 'room',
+          size: r.size,
+          position: r.position,
+          center: { x: r.position[0], z: r.position[2] }
+        };
+      }
+      return null;
+    }).filter(r => r !== null);
+
+    // ── Post-Gemini / Post-YOLO Heuristic Enforcer ─────────────────────────
+    let rawWalls = cleanedData.walls || [];
+    console.log(`📐 Heuristic Enforcer: processing ${rawWalls.length} raw walls`);
+
+    let segments = rawWalls.map(w => {
+      // Accept both array format [x,y] and object format {x,z}
+      let x1, y1, x2, y2;
+      if (w.start && Array.isArray(w.start)) {
+        x1 = w.start[0]; y1 = w.start[1];
+        x2 = w.end[0];   y2 = w.end[1];
+      } else if (w.start && typeof w.start === 'object') {
+        x1 = w.start.x; y1 = w.start.z ?? w.start.y ?? 0;
+        x2 = w.end.x;   y2 = w.end.z   ?? w.end.y   ?? 0;
+      } else {
+        return null;
+      }
+
+      // Gentle 2-unit snap (preserves structure, removes micro-jitter)
+      const snap = v => Math.round(v / 2) * 2;
+      x1 = snap(x1); y1 = snap(y1);
+      x2 = snap(x2); y2 = snap(y2);
+
+      if (x1 === x2 && y1 === y2) return null;
+
+      // Force orthogonality only when nearly axis-aligned (within 15°)
+      const dx = Math.abs(x2 - x1), dy = Math.abs(y2 - y1);
+      const angle = Math.atan2(dy, dx) * 180 / Math.PI; // 0°=horizontal, 90°=vertical
+      if (angle < 15)       y2 = y1;  // snap to horizontal
+      else if (angle > 75)  x2 = x1;  // snap to vertical
+      // else: keep diagonal (rare, non-orthogonal walls)
+
+      if (x1 === x2 && y1 === y2) return null;
+
+      // Normalize direction (smaller coord first)
+      if (x1 > x2 || (x1 === x2 && y1 > y2)) {
+        [x1, x2] = [x2, x1];
+        [y1, y2] = [y2, y1];
+      }
+      return { x1, y1, x2, y2 };
+    }).filter(Boolean);
+
+    console.log(`📐 After format parse: ${segments.length} segments`);
+
+    // 1. Remove tiny noise walls (length < 5 units) 
+    segments = segments.filter(w => Math.hypot(w.x2 - w.x1, w.y2 - w.y1) >= 5);
+    console.log(`📐 After length filter: ${segments.length} segments`);
+
+    // 2. Merge collinear overlapping or close walls
+    // 2. Separate orthogonal and diagonal walls
+    const horizWalls = segments.filter(w => w.y1 === w.y2);
+    const vertWalls  = segments.filter(w => w.x1 === w.x2);
+    const diagWalls  = segments.filter(w => w.x1 !== w.x2 && w.y1 !== w.y2);
+
+    function mergeCollinear(segs, axisFix, axisSpan) {
+      // Group by the fixed axis value (with 4-unit tolerance bucket)
+      const groups = {};
+      segs.forEach(s => {
+        const fixedVal = s[axisFix + '1'];
+        const bucket = Math.round(fixedVal / 4) * 4; // 4-unit grouping
+        if (!groups[bucket]) groups[bucket] = [];
+        groups[bucket].push(s);
+      });
+      const merged = [];
+      for (const k in groups) {
+        const g = groups[k].sort((a, b) => a[axisSpan + '1'] - b[axisSpan + '1']);
+        let curr = { ...g[0] };
+        for (let i = 1; i < g.length; i++) {
+          const n = g[i];
+          if (n[axisSpan + '1'] - curr[axisSpan + '2'] <= 20) {
+            curr[axisSpan + '2'] = Math.max(curr[axisSpan + '2'], n[axisSpan + '2']);
+          } else {
+            merged.push(curr);
+            curr = { ...n };
+          }
+        }
+        merged.push(curr);
+      }
+      return merged;
     }
 
-    const finalStyle = aiResult.style || style || 'modern';
+    let horiz = mergeCollinear(horizWalls, 'y', 'x');
+    let vert  = mergeCollinear(vertWalls,  'x', 'y');
+    segments = [...horiz, ...vert, ...diagWalls];
+    console.log(`📐 After merge: ${segments.length} segments (${horiz.length}H + ${vert.length}V + ${diagWalls.length}D)`);
 
-    // Build a layout exactly matching text-to-3D format
-    const layout = {
-      style: finalStyle,
-      rooms,
-      source: 'gemini-vision-image',
+    // 3. Bridge disconnected corners within 20 units
+    for (let i = 0; i < segments.length; i++) {
+      let w1 = segments[i];
+      for (let j = i + 1; j < segments.length; j++) {
+        let w2 = segments[j];
+        let p1s = [
+          { x: w1.x1, y: w1.y1, update: (nx, ny) => { w1.x1=nx; w1.y1=ny; } },
+          { x: w1.x2, y: w1.y2, update: (nx, ny) => { w1.x2=nx; w1.y2=ny; } }
+        ];
+        let p2s = [
+          { x: w2.x1, y: w2.y1, update: (nx, ny) => { w2.x1=nx; w2.y1=ny; } },
+          { x: w2.x2, y: w2.y2, update: (nx, ny) => { w2.x2=nx; w2.y2=ny; } }
+        ];
+        for (let p1 of p1s) {
+          for (let p2 of p2s) {
+            let dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+            if (dist > 0 && dist <= 35) p2.update(p1.x, p1.y);
+          }
+        }
+      }
+    }
+
+    const finalWalls = segments.map(w => {
+      const dx = w.x2 - w.x1;
+      const dy = w.y2 - w.y1;
+      return {
+        centerX:   (w.x1 + w.x2) / 2,
+        centerZ:   (w.y1 + w.y2) / 2,
+        length:    Math.hypot(dx, dy),
+        rotation:  -Math.atan2(dy, dx),   // Three.js Y-axis rotation
+        height:    3.5,
+        thickness: 0.8
+      };
+    });
+
+    // ── 4. Smart Door & Window Anchoring ─────────
+    // Only keep doors/windows if they cleanly intersect a repaired wall
+    const isPointOnLine = (pX, pZ, w) => {
+      const dist = Math.abs((w.y2 - w.y1)*pX - (w.x2 - w.x1)*pZ + w.x2*w.y1 - w.y2*w.x1) / (Math.hypot(w.y2 - w.y1, w.x2 - w.x1) || 1);
+      if (dist > 15) return false;
+      const minX = Math.min(w.x1, w.x2) - 10, maxX = Math.max(w.x1, w.x2) + 10;
+      const minY = Math.min(w.y1, w.y2) - 10, maxY = Math.max(w.y1, w.y2) + 10;
+      return pX >= minX && pX <= maxX && pZ >= minY && pZ <= maxY;
     };
 
-    console.log(`✅ Vision layout ready: ${rooms.length} rooms, style=${finalStyle}`);
-    res.json({
+    const allDoors = [...(yoloResult.doors || []), ...(cleanedData.doors || [])];
+    const allWindows = [...(yoloResult.windows || []), ...(cleanedData.windows || [])];
+
+    const finalDoors = allDoors.filter(d => segments.some(w => isPointOnLine(d.centerX, d.centerZ, w)));
+    const finalWindows = allWindows.filter(d => segments.some(w => isPointOnLine(d.centerX, d.centerZ, w)));
+
+    return res.json({
       success: true,
-      message: '3D layout extracted from floor plan image',
-      data: layout,       // <── matches text-to-3D format exactly
+      message: `3D layout extracted using Hybrid AI Pipeline`,
+      data: {
+        style,
+        source: 'hybrid-yolo-gemini',
+        polygons: [], // Clear polygons
+        walls: finalWalls,
+        doors: finalDoors,
+        windows: finalWindows,
+        rooms: finalRooms, // Triggers Google Vision style UI!
+        detection_count: yoloResult.detection_count || 0,
+        door_count: yoloResult.door_count || 0,
+        window_count: yoloResult.window_count || 0,
+      },
     });
 
   } catch (error) {
-    console.error('❌ Vision Upload error:', error);
-    res.status(500).json({ error: 'Failed to process floor plan: ' + error.message });
+    console.error('❌ YOLO Upload error:', error.message);
+
+    return res.json({
+      success: true,
+      message: 'YOLO detection failed — returning fallback layout',
+      data: {
+        style: req.body?.style || 'modern',
+        source: 'fallback',
+        polygons: [],
+        walls: [
+          { centerX: 0, centerZ: -40, length: 80, rotation: 0,           thickness: 1.5, height: 5 },
+          { centerX: 40, centerZ: 0,  length: 80, rotation: -1.5708,     thickness: 1.5, height: 5 },
+          { centerX: 0, centerZ: 40,  length: 80, rotation: 0,           thickness: 1.5, height: 5 },
+          { centerX: -40, centerZ: 0, length: 80, rotation: -1.5708,     thickness: 1.5, height: 5 },
+        ],
+        doors: [],
+        windows: [],
+        detection_count: 0,
+        error: error.message,
+      },
+    });
+
+  } finally {
+    // ── 4. Clean up temp file ───────────────────────────────────────────────
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try { fs.unlinkSync(tempFilePath); } catch { /* ignore */ }
+    }
   }
 });
 

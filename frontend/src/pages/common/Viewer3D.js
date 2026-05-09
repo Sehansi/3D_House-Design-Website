@@ -18,6 +18,7 @@ const STYLE_COLORS = {
 function Viewer3D() {
   const location = useLocation();
   const navigate = useNavigate();
+  const isAI = !!location.state?.aiExtracted;
 
   const [modelData,  setModelData]  = useState(null);
   const [parameters, setParameters] = useState(null);
@@ -29,8 +30,8 @@ function Viewer3D() {
   const [aiMeta,     setAiMeta]     = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [autoRotate, setAutoRotate] = useState(false);
-  const [wallHeight, setWallHeight] = useState(4);
-  const [wallColor,  setWallColor]  = useState('#e8e0d0');
+  const [wallHeight, setWallHeight] = useState(3.5);
+  const [wallColor,  setWallColor]  = useState('#1a202c');
   const [editMode,   setEditMode]   = useState(false);
   const [isTextTo3D, setIsTextTo3D] = useState(false);
   const [showRoof,   setShowRoof]   = useState(true);
@@ -110,7 +111,6 @@ function Viewer3D() {
     metadata: { totalRooms: 5, totalArea: 2000, floors: 1 },
   });
 
-  const isAI = (walls && walls.length > 0) || (polygons && polygons.length > 0);
 
   if (loading) {
     return (
@@ -204,7 +204,7 @@ function Viewer3D() {
           ) : (
             /* VIEW MODE — read-only HouseModel3D */
             <>
-              {isTextTo3D ? (
+              {(isTextTo3D || isAI) ? (
                 <div style={{ width: '100%', height: '100%', background: 'transparent' }}>
                   <HouseModel3D.CanvasWrapper autoRotate={autoRotate}>
                     <AIDesignRenderer data={parameters} autoRotate={autoRotate} showRoof={showRoof} />
@@ -212,17 +212,11 @@ function Viewer3D() {
                 </div>
               ) : (
                 <HouseModel3D
-                  modelData={modelData}
-                  parameters={parameters}
-                  finishes={finishes}
-                  polygons={polygons}
-                  walls={walls}
-                  doors={doors}
-                  windows={windows}
-                  wallHeight={wallHeight}
+                  rooms={parameters?.rooms || []}
+                  doors={doors || []}
+                  windows={windows || []}
                   wallColor={wallColor}
                   autoRotate={autoRotate}
-                  showRoof={showRoof}
                 />
               )}
               {/* Controls hint */}

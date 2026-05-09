@@ -1,464 +1,280 @@
 import React, { useRef, useMemo, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Sky } from '@react-three/drei';
+import { OrbitControls, Sky, Text, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 
 // ─────────────────────────────────────────────────────────────
-// 1. WALL SEGMENT — Simple box per wall (from Python walls[])
+// CONSTANTS & UTILS
 // ─────────────────────────────────────────────────────────────
-function WallBox({ wall, color }) {
-  const h   = wall.height    ?? 4;
-  const t   = wall.thickness ?? 0.6;
-  const len = wall.length    ?? 1;
+const WALL_H = 3.5;
+const WALL_T = 0.8;  
+const INNER_T = 0.6; 
+const ADJ_TOL = 1.0;
 
-  return (
-    <mesh
-      position={[wall.centerX, h / 2, wall.centerZ]}
-      rotation={[0, wall.rotation ?? 0, 0]}
-      castShadow
-      receiveShadow
-    >
-      <boxGeometry args={[len, h, t]} />
-      <meshStandardMaterial color={color} roughness={0.7} metalness={0.05} />
-    </mesh>
-  );
+function computeFloorWalls(rooms) {
+  const outer = [];
+  const inner = [];
+  const innerSet = new Set();
+  for (let i = 0; i < rooms.length; i++) {
+    const r = rooms[i];
+    if (!r.size || !r.position) continue;
+    const [rW,, rD] = r.size;
+    const [rX,, rZ] = r.position;
+    const rL = rX - rW / 2, rR = rX + rW / 2;
+    const rF = rZ - rD / 2, rB = rZ + rD / 2;
+    const sides = [
+      { axis: 'z', fixed: rL, span0: rF, span1: rB, dir: 'left' },
+      { axis: 'z', fixed: rR, span0: rF, span1: rB, dir: 'right' },
+      { axis: 'x', fixed: rF, span0: rL, span1: rR, dir: 'front' },
+      { axis: 'x', fixed: rB, span0: rL, span1: rR, dir: 'back' },
+    ];
+    for (const side of sides) {
+      let adjOvlp = null;
+      for (let j = 0; j < rooms.length; j++) {
+        if (j === i) continue;
+        const n = rooms[j];
+        if (!n.size || !n.position) continue;
+        const [nW,, nD] = n.size;
+        const [nX,, nZ] = n.position;
+        const nL = nX - nW / 2, nR = nX + nW / 2;
+        const nF = nZ - nD / 2, nB = nZ + nD / 2;
+        if (side.axis === 'z') {
+          const nEdge = side.dir === 'left' ? nR : nL;
+          if (Math.abs(nEdge - side.fixed) < ADJ_TOL) {
+            const o0 = Math.max(side.span0, nF), o1 = Math.min(side.span1, nB);
+            if (o1 - o0 > 0.5) { adjOvlp = { span0: o0, span1: o1 }; break; }
+          }
+        } else {
+          const nEdge = side.dir === 'front' ? nB : nF;
+          if (Math.abs(nEdge - side.fixed) < ADJ_TOL) {
+            const o0 = Math.max(side.span0, nL), o1 = Math.min(side.span1, nR);
+            if (o1 - o0 > 0.5) { adjOvlp = { span0: o0, span1: o1 }; break; }
+          }
+        }
+      }
+      if (adjOvlp) {
+        const key = `${side.axis}-${side.fixed.toFixed(1)}-${adjOvlp.span0.toFixed(1)}-${adjOvlp.span1.toFixed(1)}`;
+        if (!innerSet.has(key)) {
+          innerSet.add(key);
+          inner.push({ axis: side.axis, fixed: side.fixed, span0: adjOvlp.span0, span1: adjOvlp.span1 });
+        }
+      } else {
+        outer.push({ axis: side.axis, fixed: side.fixed, span0: side.span0, span1: side.span1, dir: side.dir });
+      }
+    }
+  }
+  return { outer, inner };
 }
 
 // ─────────────────────────────────────────────────────────────
-// 1b. EXTRUDED WALL RING — renders any polygon as a proper
-//     hollow 3D wall using ExtrudeGeometry.
-//     Outer shape = polygon points.
-//     Inner hole  = polygon scaled inward toward centroid.
-//     This solves the "always a square" problem by following
-//     the actual detected polygon shape.
+// COMPONENTS
 // ─────────────────────────────────────────────────────────────
-function ExtrudedWallRing({ points, wallHeight = 4, wallColor = '#d4c9b0', insetRatio = 0.88 }) {
-  const geo = useMemo(() => {
-    if (!points || points.length < 3) return null;
+function WallWithOpening({ wall, type = 'outer', color, openings = [] }) {
+  const len = wall.span1 - wall.span0;
+  const midS = (wall.span0 + wall.span1) / 2;
+  const px = wall.axis === 'z' ? wall.fixed : midS;
+  const pz = wall.axis === 'z' ? midS : wall.fixed;
+  const ry = wall.axis === 'z' ? Math.PI / 2 : 0;
+  const t = type === 'outer' ? WALL_T : INNER_T;
+  const wallCol = type === 'outer' ? (color || "#1a202c") : "#ffffff";
 
-    // Centroid for inward scaling
-    const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
-    const cz = points.reduce((s, p) => s + p.z, 0) / points.length;
+  if (openings.length === 0) {
+    return (
+      <mesh position={[px, WALL_H / 2, pz]} rotation={[0, ry, 0]} castShadow receiveShadow>
+        <boxGeometry args={[len, WALL_H, t]} />
+        <meshStandardMaterial color={wallCol} roughness={0.6} />
+      </mesh>
+    );
+  }
 
-    // Outer shape — follows the exact polygon
-    const shape = new THREE.Shape();
-    shape.moveTo(points[0].x, points[0].z);
-    for (let i = 1; i < points.length; i++) {
-      shape.lineTo(points[i].x, points[i].z);
-    }
-    shape.closePath();
+  const op = openings[0]; 
+  const opPos = wall.axis === 'z' ? op.centerZ : op.centerX;
+  const opLen = op.length || (op.type === 'door' ? 1.4 : 2.2);
+  const opH = op.type === 'door' ? 2.6 : 1.6;
+  const opY = op.type === 'door' ? 0 : 1.4;
+  
+  const relPos = opPos - wall.span0;
+  const s1Len = Math.max(0, relPos - opLen / 2);
+  const s2Len = Math.max(0, len - (relPos + opLen / 2));
 
-    // Inner hole — polygon scaled toward centroid by insetRatio
-    // Creates the hollow "wall ring" effect
-    const hole = new THREE.Path();
-    const inset = points.map(p => ({
-      x: cx + (p.x - cx) * insetRatio,
-      z: cz + (p.z - cz) * insetRatio,
-    }));
-    hole.moveTo(inset[0].x, inset[0].z);
-    for (let i = 1; i < inset.length; i++) {
-      hole.lineTo(inset[i].x, inset[i].z);
-    }
-    hole.closePath();
-    shape.holes.push(hole);
-
-    const g = new THREE.ExtrudeGeometry(shape, {
-      depth:         wallHeight,
-      bevelEnabled:  false,
-    });
-    // ExtrudeGeometry goes along Z — rotate to lie on the XZ plane
-    g.rotateX(-Math.PI / 2);
-    return g;
-  }, [points, wallHeight, insetRatio]);
-
-  if (!geo) return null;
   return (
-    <mesh geometry={geo} castShadow receiveShadow position={[0, 0, 0]}>
-      <meshStandardMaterial color={wallColor} roughness={0.65} metalness={0.05} />
-    </mesh>
+    <group position={[px, 0, pz]} rotation={[0, ry, 0]}>
+      {s1Len > 0.05 && (
+        <mesh position={[-len / 2 + s1Len / 2, WALL_H / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[s1Len, WALL_H, t]} />
+          <meshStandardMaterial color={wallCol} />
+        </mesh>
+      )}
+      {s2Len > 0.05 && (
+        <mesh position={[len / 2 - s2Len / 2, WALL_H / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[s2Len, WALL_H, t]} />
+          <meshStandardMaterial color={wallCol} />
+        </mesh>
+      )}
+      <mesh position={[-len / 2 + relPos, opY + opH + (WALL_H - (opY + opH)) / 2, 0]} castShadow>
+        <boxGeometry args={[opLen, WALL_H - (opY + opH), t]} />
+        <meshStandardMaterial color={wallCol} />
+      </mesh>
+      {opY > 0.1 && (
+        <mesh position={[-len / 2 + relPos, opY / 2, 0]} castShadow>
+          <boxGeometry args={[opLen, opY, t]} />
+          <meshStandardMaterial color={wallCol} />
+        </mesh>
+      )}
+    </group>
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// 2. POLYGON FILL — Extruded room floor (from Python polygons[])
-//    This creates the colored floor slab for each detected room.
-// ─────────────────────────────────────────────────────────────
-const ROOM_COLORS = [
-  '#d4a574', '#a8c5a0', '#9bb5cc', '#d4c5a0',
-  '#c5a0c0', '#a0c5c5', '#c5b5a0', '#b5a0c5',
-];
-
-function PolygonFloor({ points, colorIndex }) {
-  const geo = useMemo(() => {
-    if (!points || points.length < 3) return null;
-    const shape = new THREE.Shape();
-    shape.moveTo(points[0].x, points[0].z);
-    for (let i = 1; i < points.length; i++) {
-      shape.lineTo(points[i].x, points[i].z);
-    }
-    shape.closePath();
-    const g = new THREE.ShapeGeometry(shape);
-    g.rotateX(-Math.PI / 2);   // lie flat on XZ plane
-    return g;
-  }, [points]);
-
-  if (!geo) return null;
-
+function DoorMesh({ door }) {
   return (
-    <mesh geometry={geo} position={[0, 0.05, 0]} receiveShadow>
-      <meshStandardMaterial
-        color={ROOM_COLORS[colorIndex % ROOM_COLORS.length]}
-        roughness={0.9}
-        side={THREE.DoubleSide}
-        transparent
-        opacity={0.9}
-      />
-    </mesh>
+    <group position={[door.centerX, 1.3, door.centerZ]} rotation={[0, door.rotation || 0, 0]}>
+      <mesh castShadow>
+        <boxGeometry args={[1.3, 2.5, 0.2]} />
+        <meshStandardMaterial color="#ecc94b" />
+      </mesh>
+    </group>
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// 2b. DOOR MESH — frame + panel + knob
-// ─────────────────────────────────────────────────────────────
-function DoorMesh({ wall }) {
-  const wallH = wall.height ?? 4;
-  const t     = (wall.thickness ?? 0.6) * 0.25;   // door is thinner than wall
-  const doorW = Math.min(wall.length ?? 2, 1.8);
-  const doorH = Math.min(wallH * 0.75, 2.4);
-  const frameT = 0.12;
-
+function WindowMesh({ win }) {
   return (
-    <group
-      position={[wall.centerX, 0, wall.centerZ]}
-      rotation={[0, wall.rotation ?? 0, 0]}
-    >
-      {/* Door panel */}
-      <mesh position={[0, doorH / 2, 0]} castShadow>
-        <boxGeometry args={[doorW, doorH, t]} />
-        <meshStandardMaterial color="#5c3d1e" roughness={0.65} metalness={0.05} />
-      </mesh>
-      {/* Top frame */}
-      <mesh position={[0, doorH + frameT / 2, 0]} castShadow>
-        <boxGeometry args={[doorW + frameT * 2, frameT, t + 0.02]} />
-        <meshStandardMaterial color="#3a2410" roughness={0.5} />
-      </mesh>
-      {/* Left frame */}
-      <mesh position={[-(doorW / 2 + frameT / 2), doorH / 2, 0]} castShadow>
-        <boxGeometry args={[frameT, doorH + frameT, t + 0.02]} />
-        <meshStandardMaterial color="#3a2410" roughness={0.5} />
-      </mesh>
-      {/* Right frame */}
-      <mesh position={[doorW / 2 + frameT / 2, doorH / 2, 0]} castShadow>
-        <boxGeometry args={[frameT, doorH + frameT, t + 0.02]} />
-        <meshStandardMaterial color="#3a2410" roughness={0.5} />
-      </mesh>
-      {/* Door knob */}
-      <mesh position={[doorW * 0.38, doorH * 0.45, t / 2 + 0.04]}>
-        <sphereGeometry args={[0.06, 10, 10]} />
-        <meshStandardMaterial color="#ffd700" metalness={1} roughness={0.15} />
+    <group position={[win.centerX, 2.2, win.centerZ]} rotation={[0, win.rotation || 0, 0]}>
+      <mesh>
+        <boxGeometry args={[2.0, 1.5, 0.1]} />
+        <meshPhysicalMaterial color="#a5d8ff" transparent opacity={0.35} transmission={0.8} />
       </mesh>
     </group>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// 2c. WINDOW MESH — glass pane with thin frame
+// FURNITURE
 // ─────────────────────────────────────────────────────────────
-function WindowMesh({ wall }) {
-  const wallH = wall.height    ?? 4;
-  const winW  = Math.min(wall.length ?? 1.2, 2.0);
-  const winH  = Math.min(wallH * 0.35, 1.4);
-  const yPos  = wallH * 0.58;              // mid-upper height
-  const t     = (wall.thickness ?? 0.6) * 0.15;
-  const frameT = 0.08;
+function FurnitureItem({ type, position, rotation = 0, scale = 1 }) {
+  const model = useMemo(() => {
+    switch ((type || '').toLowerCase()) {
+      case 'sofa':
+        return (<group scale={scale}>
+          <mesh position={[0, 0.3, 0]} castShadow><boxGeometry args={[2.8, 0.6, 1.1]} /><meshStandardMaterial color="#4a5568" /></mesh>
+          <mesh position={[0, 0.8, -0.45]} castShadow><boxGeometry args={[2.8, 1.0, 0.2]} /><meshStandardMaterial color="#2d3748" /></mesh>
+        </group>);
+      case 'bed':
+        return (<group scale={scale}>
+          <mesh position={[0, 0.25, 0]} castShadow><boxGeometry args={[2.2, 0.5, 2.4]} /><meshStandardMaterial color="#ffffff" /></mesh>
+          <mesh position={[0, 0.9, -1.15]} castShadow><boxGeometry args={[2.2, 1.3, 0.2]} /><meshStandardMaterial color="#4a5568" /></mesh>
+        </group>);
+      case 'kitchen':
+        return (<group scale={scale}>
+          <mesh position={[0, 0.5, 0]} castShadow><boxGeometry args={[3.2, 1.0, 0.8]} /><meshStandardMaterial color="#f7fafc" /></mesh>
+          <mesh position={[0, 1.02, 0]}><boxGeometry args={[3.3, 0.1, 0.85]} /><meshStandardMaterial color="#1a202c" /></mesh>
+        </group>);
+      default: return null;
+    }
+  }, [type, scale]);
+  if (!model) return null;
+  return <group position={position} rotation={[0, rotation, 0]}>{model}</group>;
+}
 
+function RoomContent({ room }) {
+  const [w,, d] = room.size || [5, 3, 5];
+  const [x,, z] = room.position || [0, 0, 0];
+  const t = (room.type || '').toLowerCase();
+  
   return (
-    <group
-      position={[wall.centerX, yPos, wall.centerZ]}
-      rotation={[0, wall.rotation ?? 0, 0]}
-    >
-      {/* Glass pane */}
-      <mesh>
-        <boxGeometry args={[winW, winH, t]} />
-        <meshPhysicalMaterial
-          color="#b8daf5"
-          transparent
-          opacity={0.4}
-          roughness={0.0}
-          metalness={0.1}
-          transmission={0.7}
-        />
+    <group>
+      {/* Floor for room */}
+      <mesh rotation={[-Math.PI/2, 0, 0]} position={[x, 0.02, z]} receiveShadow>
+        <planeGeometry args={[w - 0.2, d - 0.2]} />
+        <meshStandardMaterial color={t.includes('bath') ? '#e2e8f0' : '#f0e6d2'} roughness={0.8} />
       </mesh>
-      {/* Top frame */}
-      <mesh position={[0, winH / 2 + frameT / 2, 0]}>
-        <boxGeometry args={[winW + frameT * 2, frameT, t + 0.02]} />
-        <meshStandardMaterial color="#888" metalness={0.6} roughness={0.3} />
-      </mesh>
-      {/* Bottom frame */}
-      <mesh position={[0, -winH / 2 - frameT / 2, 0]}>
-        <boxGeometry args={[winW + frameT * 2, frameT, t + 0.02]} />
-        <meshStandardMaterial color="#888" metalness={0.6} roughness={0.3} />
-      </mesh>
-      {/* Left frame */}
-      <mesh position={[-(winW / 2 + frameT / 2), 0, 0]}>
-        <boxGeometry args={[frameT, winH + frameT * 2, t + 0.02]} />
-        <meshStandardMaterial color="#888" metalness={0.6} roughness={0.3} />
-      </mesh>
-      {/* Right frame */}
-      <mesh position={[winW / 2 + frameT / 2, 0, 0]}>
-        <boxGeometry args={[frameT, winH + frameT * 2, t + 0.02]} />
-        <meshStandardMaterial color="#888" metalness={0.6} roughness={0.3} />
-      </mesh>
-      {/* Center divider */}
-      <mesh>
-        <boxGeometry args={[0.04, winH, t + 0.01]} />
-        <meshStandardMaterial color="#888" metalness={0.6} roughness={0.3} />
-      </mesh>
+      
+      {t.includes('living') && <FurnitureItem type="sofa" position={[x, 0.05, z]} scale={Math.max(0.8, Math.min(w, d) * 0.25)} />}
+      {t.includes('bedroom') && <FurnitureItem type="bed" position={[x, 0.05, z]} scale={Math.max(0.8, Math.min(w, d) * 0.35)} />}
+      {t.includes('kitchen') && <FurnitureItem type="kitchen" position={[x, 0.05, z]} scale={Math.max(0.8, Math.min(w, d) * 0.35)} />}
+      
+      <Text position={[x, 4.0, z]} fontSize={0.75} color="#1a202c" anchorX="center" outlineWidth={0.03} outlineColor="white">
+        {room.type?.toUpperCase()}
+      </Text>
     </group>
   );
 }
 
-// 3. AI SCENE — walls + floor slabs + doors + windows
 // ─────────────────────────────────────────────────────────────
-function AIScene({ walls, polygons, doors, windows, wallColor, wallHeight, autoRotate, isCorrected = false }) {
+// SCENE
+// ─────────────────────────────────────────────────────────────
+function AIScene({ rooms, doors, windows, wallColor, autoRotate }) {
   const groupRef = useRef();
-  useFrame((_, delta) => {
-    if (autoRotate && groupRef.current) groupRef.current.rotation.y += delta * 0.07;
-  });
+  useFrame((_, delta) => { if (autoRotate && groupRef.current) groupRef.current.rotation.y += delta * 0.05; });
 
-  const hasWalls    = walls    && walls.length    > 0;
-  const hasPolygons = polygons && polygons.length > 0;
+  const { outer, inner } = useMemo(() => computeFloorWalls(rooms), [rooms]);
 
-  // Compute bounding box for ground plane
-  const bounds = useMemo(() => {
-    let minX = -55, maxX = 55, minZ = -55, maxZ = 55;
-    if (hasWalls) {
-      walls.forEach(w => {
-        minX = Math.min(minX, w.centerX - w.length / 2);
-        maxX = Math.max(maxX, w.centerX + w.length / 2);
-        minZ = Math.min(minZ, w.centerZ - (w.thickness ?? 0.6) / 2);
-        maxZ = Math.max(maxZ, w.centerZ + (w.thickness ?? 0.6) / 2);
+  const wallWithOps = useMemo(() => {
+    const checkOp = (w) => {
+      const ops = [];
+      doors.forEach(d => {
+        if (w.axis === 'z' && Math.abs(d.centerX - w.fixed) < 1.0 && d.centerZ > w.span0 && d.centerZ < w.span1) ops.push({...d, type:'door'});
+        else if (w.axis === 'x' && Math.abs(d.centerZ - w.fixed) < 1.0 && d.centerX > w.span0 && d.centerX < w.span1) ops.push({...d, type:'door'});
       });
-    }
-    return {
-      cx: (minX + maxX) / 2,
-      cz: (minZ + maxZ) / 2,
-      w:  maxX - minX + 20,
-      d:  maxZ - minZ + 20,
+      windows.forEach(win => {
+        if (w.axis === 'z' && Math.abs(win.centerX - w.fixed) < 1.0 && win.centerZ > w.span0 && win.centerZ < w.span1) ops.push({...win, type:'window'});
+        else if (w.axis === 'x' && Math.abs(win.centerZ - w.fixed) < 1.0 && win.centerX > w.span0 && win.centerX < w.span1) ops.push({...win, type:'window'});
+      });
+      return ops;
     };
-  }, [walls, hasWalls]);
+    return {
+      outer: outer.map(w => ({ ...w, openings: checkOp(w) })),
+      inner: inner.map(w => ({ ...w, openings: checkOp(w) })),
+    };
+  }, [outer, inner, doors, windows]);
 
   return (
     <group ref={groupRef}>
-      {/* Ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[bounds.cx, 0, bounds.cz]} receiveShadow>
-        <planeGeometry args={[bounds.w, bounds.d]} />
-        <meshStandardMaterial color="#c8bca8" roughness={1} />
+      {/* Ground Plane */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]} receiveShadow>
+        <planeGeometry args={[500, 500]} />
+        <meshStandardMaterial color="#ffffff" />
       </mesh>
+      
+      {/* Large Floor Slab */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+        <planeGeometry args={[150, 150]} />
+        <meshStandardMaterial color="#f7fafc" />
+      </mesh>
+      <gridHelper args={[150, 150, '#e2e8f0', '#edf2f7']} position={[0, 0.01, 0]} />
 
-      {/* ── WALL POLYGONS → ExtrudedWallRing ─────────────────────────
-           Each detected polygon is rendered as a hollow 3D wall ring
-           following the exact polygon shape (not just 4 box segments).
-           Only show if the layout HASN'T been corrected by the user yet.
-      */}
-      {!isCorrected && hasPolygons && polygons.map((poly, i) => (
-        <ExtrudedWallRing
-          key={`ring-${i}`}
-          points={poly.points}
-          wallHeight={wallHeight}
-          wallColor={wallColor}
-          insetRatio={0.87}
-        />
-      ))}
-
-      {/* ── FLOOR SLABS — colored floors inside the wall rings ──── */}
-      {hasPolygons && polygons.map((poly, i) => (
-        <PolygonFloor key={`floor-${i}`} points={poly.points} colorIndex={i} />
-      ))}
-
-      {/* ── INTERNAL WALL SEGMENTS (WallBox) ─────────────────────────
-           If CORRECTED: Render every wall segment in the walls[] array.
-           If AI-ONLY: Render segments only if they are dense (more segments
-           than room sides) to avoid re-drawing the outer hulls.
-      */}
-      {hasWalls && (isCorrected || walls.length > (polygons?.length ?? 0) * 5) && walls.map((wall, i) => (
-        <WallBox
-          key={`w-${i}`}
-          wall={{ ...wall, height: wallHeight }}
-          color={wallColor}
-        />
-      ))}
-
-      {/* Doors — dark brown boxes */}
-      {doors && doors.length > 0 && doors.map((door, i) => (
-        <DoorMesh key={`d-${i}`} wall={{ ...door, height: wallHeight }} />
-      ))}
-
-      {/* Windows — semi-transparent glass slabs */}
-      {windows && windows.length > 0 && windows.map((win, i) => (
-        <WindowMesh key={`win-${i}`} wall={{ ...win, height: wallHeight }} />
-      ))}
-
-      {/* If no walls at all — show placeholder */}
-      {!hasWalls && !hasPolygons && (
-        <mesh position={[0, 2, 0]} castShadow>
-          <boxGeometry args={[20, 4, 20]} />
-          <meshStandardMaterial color={wallColor} wireframe />
-        </mesh>
-      )}
+      {wallWithOps.outer.map((w, i) => <WallWithOpening key={`out-${i}`} wall={w} type="outer" color={wallColor} openings={w.openings} />)}
+      {wallWithOps.inner.map((w, i) => <WallWithOpening key={`in-${i}`} wall={w} type="inner" openings={w.openings} />)}
+      {rooms.map((r, i) => <RoomContent key={i} room={r} />)}
+      {doors.map((d, i) => <DoorMesh key={i} door={d} />)}
+      {windows.map((w, i) => <WindowMesh key={i} win={w} />)}
+      
+      <ContactShadows position={[0, 0, 0]} opacity={0.4} scale={100} blur={2} far={10} />
     </group>
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// 4. STANDARD SCENE — parametric room boxes
-// ─────────────────────────────────────────────────────────────
-function Room({ position, dimensions, color }) {
-  const w = dimensions.width, h = dimensions.height, d = dimensions.depth;
-  return (
-    <group position={position}>
-      {/* Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color="#c8bca8" />
-      </mesh>
-      {/* Back wall */}
-      <mesh position={[0, h/2, -d/2]} castShadow>
-        <boxGeometry args={[w, h, 0.2]} />
-        <meshStandardMaterial color={color} roughness={0.8} />
-      </mesh>
-      {/* Left wall */}
-      <mesh position={[-w/2, h/2, 0]} castShadow>
-        <boxGeometry args={[0.2, h, d]} />
-        <meshStandardMaterial color={color} roughness={0.8} />
-      </mesh>
-      {/* Right wall */}
-      <mesh position={[w/2, h/2, 0]} castShadow>
-        <boxGeometry args={[0.2, h, d]} />
-        <meshStandardMaterial color={color} roughness={0.8} />
-      </mesh>
-    </group>
-  );
-}
-
-function StandardScene({ modelData, finishes, autoRotate, showRoof = true }) {
-  const groupRef = useRef();
-  useFrame((_, delta) => {
-    if (autoRotate && groupRef.current) groupRef.current.rotation.y += delta * 0.07;
-  });
-
-  const bounds = useMemo(() => {
-    if (!modelData?.rooms) return { w: 15, d: 15, cx: 0, cz: 0, h: 3 };
-    let minX=Infinity, maxX=-Infinity, minZ=Infinity, maxZ=-Infinity, maxY=0;
-    modelData.rooms.forEach(r => {
-      minX = Math.min(minX, r.position.x - r.dimensions.width/2);
-      maxX = Math.max(maxX, r.position.x + r.dimensions.width/2);
-      minZ = Math.min(minZ, r.position.z - r.dimensions.depth/2);
-      maxZ = Math.max(maxZ, r.position.z + r.dimensions.depth/2);
-      maxY = Math.max(maxY, r.dimensions.height);
-    });
-    return { w: maxX-minX, d: maxZ-minZ, cx:(minX+maxX)/2, cz:(minZ+maxZ)/2, h: maxY };
-  }, [modelData]);
-
-  if (!modelData?.rooms) return null;
-  const wallColor = finishes?.wallColor || '#e8e0d0';
-
-  return (
-    <group ref={groupRef}>
-      <mesh rotation={[-Math.PI/2,0,0]} position={[bounds.cx,-0.05,bounds.cz]} receiveShadow>
-        <planeGeometry args={[bounds.w+15, bounds.d+15]} />
-        <meshStandardMaterial color="#c8bca8" />
-      </mesh>
-      {modelData.rooms.map((room, i) => (
-        <Room key={i} position={[room.position.x, room.position.y, room.position.z]}
-          dimensions={room.dimensions} color={wallColor} />
-      ))}
-      {/* Simple flat roof - HIDE if showRoof is False */}
-      {showRoof && (
-        <mesh position={[bounds.cx, bounds.h+0.1, bounds.cz]} castShadow>
-          <boxGeometry args={[bounds.w+1, 0.3, bounds.d+1]} />
-          <meshStandardMaterial color="#8B6355" roughness={0.9} />
-        </mesh>
-      )}
-    </group>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// 5. MAIN EXPORT AND WRAPPER
-// ─────────────────────────────────────────────────────────────
 export function CanvasWrapper({ children, autoRotate = false }) {
   return (
-    <Canvas shadows camera={{ position: [40, 35, 55], fov: 50 }}>
-      {/* Sky & Lights */}
-      <Sky sunPosition={[100, 40, 100]} />
-      <ambientLight intensity={0.55} />
-      <directionalLight
-        position={[25, 35, 20]}
-        intensity={1.3}
-        castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        shadow-camera-left={-70}
-        shadow-camera-right={70}
-        shadow-camera-top={70}
-        shadow-camera-bottom={-70}
-      />
-      <directionalLight position={[-20, 20, -30]} intensity={0.35} />
-
-      <Suspense fallback={null}>
-        {children}
-      </Suspense>
-
-      <gridHelper args={[140, 70, '#445566', '#1a2233']} position={[0, 0.01, 0]} />
-      <OrbitControls
-        target={[0, 2, 0]}
-        enablePan
-        enableZoom
-        enableRotate
-        minDistance={5}
-        maxDistance={150}
-        maxPolarAngle={Math.PI / 2.05}
-      />
-    </Canvas>
-  );
-}
-
-export default function HouseModel3D({
-  modelData, parameters, finishes,
-  polygons, walls, doors, windows,
-  wallHeight = 4, wallColor = '#e8e0d0',
-  autoRotate = false, showRoof = true,
-}) {
-  const isAI = (walls && walls.length > 0) || (polygons && polygons.length > 0);
-  const isCorrected = parameters?.isCorrected || parameters?.source === 'roboflow-corrected';
-
-  return (
-    <div style={{ width: '100%', height: '100%', background: 'transparent' }}>
-      <CanvasWrapper autoRotate={autoRotate}>
-        {isAI ? (
-          <AIScene
-            walls={walls || []}
-            polygons={polygons || []}
-            doors={doors || []}
-            windows={windows || []}
-            wallColor={wallColor}
-            wallHeight={wallHeight}
-            autoRotate={autoRotate}
-            isCorrected={isCorrected}
-          />
-        ) : (
-          <StandardScene
-            modelData={modelData}
-            parameters={parameters}
-            finishes={finishes}
-            autoRotate={autoRotate}
-            showRoof={showRoof}
-          />
-        )}
-      </CanvasWrapper>
+    <div style={{ width: '100%', height: '100%' }}>
+      <Canvas shadows camera={{ position: [50, 50, 50], fov: 40 }}>
+        <Sky sunPosition={[100, 50, 100]} turbidity={0.1} rayleigh={0.5} />
+        <ambientLight intensity={0.6} />
+        <directionalLight position={[50, 80, 50]} intensity={1.5} castShadow shadow-mapSize={[4096, 4096]} />
+        <Suspense fallback={null}>{children}</Suspense>
+        <OrbitControls target={[0, 0, 0]} maxPolarAngle={Math.PI / 2.2} minDistance={20} maxDistance={150} />
+      </Canvas>
     </div>
   );
 }
 
+function HouseModel3D({ rooms, doors, windows, wallColor = '#5c4033', autoRotate = false }) {
+  if (!rooms || rooms.length === 0) return <div style={{ color: 'white', padding: '20px', textAlign:'center', marginTop:'20%' }}>🏗️ RECONSTRUCTING SPACIOUS ARCHITECTURE...</div>;
+  return (
+    <CanvasWrapper autoRotate={autoRotate}>
+      <AIScene rooms={rooms} doors={doors || []} windows={windows || []} wallColor={wallColor} autoRotate={autoRotate} />
+    </CanvasWrapper>
+  );
+}
+
 HouseModel3D.CanvasWrapper = CanvasWrapper;
+export default HouseModel3D;

@@ -213,4 +213,77 @@ Return this exact format:
   ]
 }`;
 
-module.exports = { generate3DLayout, generate3DLayoutWithFallback, extractFloorPlanFromImage };
+const HYBRID_SYSTEM_INSTRUCTION = `You are an expert architectural AI assistant. Reconstruct a SINGLE, SOLID, GRAND architectural house layout from the image and YOLO coordinates. 
+CRITICAL: Use a LARGE coordinate scale (0 to 100). Every room MUST be spacious. Main rooms (Living, Bedroom, Kitchen) MUST be at least 20x20 units. DO NOT use tiny numbers. Ensure the entire house forms a solid, large block.
+Every room MUST have at least one door and multiple large windows.
+
+Output ONLY the structured JSON in this format:
+{
+  "walls": [{"start": [x, y], "end": [x, y]}],
+  "rooms": [{"type": "room type", "size": [width, 3.5, depth], "position": [x, 0, z]}],
+  "doors": [{"centerX": x, "centerZ": z, "rotation": r, "length": 1.5}],
+  "windows": [{"centerX": x, "centerZ": z, "rotation": r, "length": 2.5}]
+}`;
+
+/**
+ * Hybrid AI Pipeline: YOLO -> Gemini Vision
+ * Uses Gemini to sanitize and reconstruct the floor plan logically from noisy YOLO coordinates.
+ */
+const cleanYoloOutputWithGemini = async (base64Image, rawYoloJson) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not defined in .env");
+
+  const modelsToTry = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash"];
+  
+  for (const modelName of modelsToTry) {
+    try {
+      console.log(`🤖 Hybrid AI Clean Attempt: ${modelName}...`);
+      const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+      const payload = {
+        contents: [{
+          parts: [
+            { text: `${HYBRID_SYSTEM_INSTRUCTION}\n\nRaw YOLO Coordinates:\n${JSON.stringify(rawYoloJson)}` },
+            { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+          ]
+        }]
+      };
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      
+      if (response.status === 429) {
+          console.warn(`[Gemini] 429 Rate Limit on ${modelName}. Sleeping 2s...`);
+          await sleep(2000);
+          continue;
+      }
+      
+      if (!response.ok) {
+          console.error(`[Gemini] Error on ${modelName}: Status ${response.status}. Msg:`, result.error?.message || result);
+          continue;
+      }
+      
+      if (!result.candidates || result.candidates.length === 0) {
+          console.error(`[Gemini] No candidates returned from ${modelName}`);
+          continue;
+      }
+
+      const text = result.candidates[0].content.parts[0].text;
+      const jsonStart = text.indexOf('{');
+      const jsonEnd = text.lastIndexOf('}') + 1;
+      return JSON.parse(text.substring(jsonStart, jsonEnd));
+
+    } catch (e) {
+      console.error(`Hybrid AI Error (${modelName}):`, e.message);
+      continue;
+    }
+  }
+  throw new Error("Hybrid AI pipeline exhausted. Gemini could not clean the layout.");
+};
+
+module.exports = { generate3DLayout, generate3DLayoutWithFallback, extractFloorPlanFromImage, cleanYoloOutputWithGemini };
