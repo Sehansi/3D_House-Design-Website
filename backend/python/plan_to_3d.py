@@ -40,11 +40,11 @@ def detect_openings_cv(img, scale_x, scale_z, img_h):
         gray,
         cv2.HOUGH_GRADIENT,
         dp=1.5,
-        minDist=30,
+        minDist=40,
         param1=60,
-        param2=25,
-        minRadius=12,
-        maxRadius=60,
+        param2=60,
+        minRadius=15,
+        maxRadius=50,
     )
     if circles is not None:
         circles = np.round(circles[0, :]).astype(int)
@@ -67,8 +67,8 @@ def detect_openings_cv(img, scale_x, scale_z, img_h):
     # ── 3. Detect window double-lines on outer walls ─────────
     # Windows appear as very short parallel lines (double line patterns).
     # We find short horizontal/vertical line segments that appear in pairs.
-    kernel_h = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 1))
-    kernel_v = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 25))
+    kernel_h = cv2.getStructuringElement(cv2.MORPH_RECT, (35, 1))
+    kernel_v = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 35))
 
     horiz = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_h)
     vert  = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_v)
@@ -80,9 +80,9 @@ def detect_openings_cv(img, scale_x, scale_z, img_h):
             # Window segments: short span in one axis, thin in the other
             span   = w if is_horiz else h
             thin   = h if is_horiz else w
-            if span < 15 or span > 120:
+            if span < 30 or span > 150:
                 continue
-            if thin > 8:
+            if thin > 5:
                 continue
             cx_px = x + w // 2
             cy_px = y + h // 2
@@ -109,13 +109,22 @@ def detect_openings_cv(img, scale_x, scale_z, img_h):
         if not too_close:
             deduped.append(w)
 
-    return doors, deduped
+    deduped_doors = []
+    for d in doors:
+        too_close = any(
+            abs(d["centerX"] - e["centerX"]) < 2 and abs(d["centerZ"] - e["centerZ"]) < 2
+            for e in deduped_doors
+        )
+        if not too_close:
+            deduped_doors.append(d)
+
+    return deduped_doors, deduped
 
 
 def process_file(file_path):
     try:
         # Check if the AI model exists
-        model_path = os.path.join(os.path.dirname(__file__), 'best_new.pt')
+        model_path = os.path.join(os.path.dirname(__file__), 'best.pt')
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"AI Model not found at {model_path}")
 
@@ -160,7 +169,8 @@ def process_file(file_path):
 
         # 2. YOLO wall/room detection
         model   = YOLO(model_path)
-        results = model.predict(source=img, conf=0.15, verbose=False, iou=0.45)
+        # Ultra-aggressive confidence to ensure we catch even faint model detections
+        results = model.predict(source=img, conf=0.05, verbose=False, iou=0.3)
 
         polygons      = []
         walls_fallback = []
@@ -175,9 +185,8 @@ def process_file(file_path):
                     epsilon  = 0.008 * cv2.arcLength(mask, True)
                     approx   = cv2.approxPolyDP(mask, epsilon, True)
 
-                    area = cv2.contourArea(approx)
-                    if area < 500:
-                        continue
+                    # Removed area filter to catch all detected rooms regardless of size
+
 
                     points = []
                     for point in approx:

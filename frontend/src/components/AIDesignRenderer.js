@@ -69,7 +69,7 @@ function GabledRoof({ bounds, topY, style }) {
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────
-const WALL_H   = 3.0;   // wall height per floor
+const WALL_H   = 3.5;   // wall height per floor
 const WALL_T   = 0.22;  // outer wall thickness
 const INNER_T  = 0.15;  // inner partition wall thickness
 const DOOR_W   = 1.0;   // door opening width
@@ -340,7 +340,7 @@ function RoomLabel3D({ room, yBase }) {
   const [x,, z] = room.position;
   return (
     <Text
-      position={[x, yBase + WALL_H - 0.35, z]}
+      position={[x, 4.0, z]}
       fontSize={0.4}
       color="#1e1e2e"
       anchorX="center"
@@ -618,9 +618,6 @@ export default function AIDesignRenderer({ data, autoRotate = false, showRoof = 
       {/* Atmosphere */}
       <ContactShadows position={[bounds.cx, -0.01, bounds.cz]} opacity={0.3} scale={70} blur={3} far={12} color="#000" />
       <gridHelper args={[120, 60, '#555', '#333']} position={[0, -0.01, 0]} />
-      <ambientLight intensity={0.7} />
-      <directionalLight position={[14, 22, 12]} intensity={1.3} castShadow shadow-mapSize={[2048, 2048]} />
-      <directionalLight position={[-10, 12, -18]} intensity={0.3} />
     </group>
   );
 }

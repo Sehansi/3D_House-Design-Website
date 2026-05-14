@@ -130,12 +130,17 @@ function AIDesigner() {
   const openIn3D = () => {
     if (!result) return;
     
-    // Check if it's the new room-based layout (rooms array exists)
-    const isTextTo3D = result.rooms && Array.isArray(result.rooms);
+    // YOLO/Hybrid pipeline results ALWAYS use HouseModel3D (wall segment renderer).
+    // isTextTo3D is ONLY true for pure text-to-3D results (no walls, only rooms).
+    const isYoloResult = !!(result.walls || result.polygons) ||
+                         result.source === 'hybrid-yolo-gemini' ||
+                         result.source === 'fallback';
+
+    const isTextTo3D = !isYoloResult && result.rooms && Array.isArray(result.rooms);
     
     navigate('/viewer', {
       state: {
-        parameters: isTextTo3D ? result : result.parameters,
+        parameters: isYoloResult ? result : (isTextTo3D ? result : result.parameters),
         aiExtracted: true,
         isTextTo3D: isTextTo3D
       }
@@ -266,8 +271,8 @@ function AIDesigner() {
                         <div style={{ position: 'absolute', top: '2px', left: '20px', width: '16px', height: '16px', borderRadius: '50%', background: 'white' }} />
                       </div>
                       <div>
-                        <p style={{ margin: 0, fontWeight: 700, fontSize: '0.85rem', color: '#b266ff', display: 'flex', alignItems: 'center', gap: '6px' }}><Eye size={14} /> Gemini 1.5 Vision</p>
-                        <p style={{ margin: 0, fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)' }}>High-Accuracy extraction</p>
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: '0.85rem', color: '#b266ff', display: 'flex', alignItems: 'center', gap: '6px' }}><Eye size={14} /> YOLO v8 Model (best_v2.pt)</p>
+                        <p style={{ margin: 0, fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)' }}>Local AI — High-Accuracy extraction</p>
                       </div>
                     </div>
                   </div>
@@ -301,7 +306,7 @@ function AIDesigner() {
                   }}>
                     <div style={{ width: '52px', height: '52px', border: '4px solid rgba(112,0,255,0.2)', borderTopColor: '#b266ff', borderRadius: '50%', animation: 'spin 1.2s linear infinite' }} />
                     <p style={{ margin: 0, color: '#b266ff', fontWeight: 700, fontSize: '1rem' }}>AI is designing your house...</p>
-                    <p style={{ margin: 0, color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>Gemini is crafting a 3D room layout from your prompt</p>
+                    <p style={{ margin: 0, color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>AI is crafting a 3D room layout from your prompt</p>
                   </div>
                 ) : (
                   <textarea
@@ -345,7 +350,7 @@ function AIDesigner() {
               </h2>
               <p style={{ margin: 0, color: 'rgba(255,255,255,0.6)', fontSize: '1.1rem' }}>
                 {activeTab === 'text'
-                  ? 'Gemini AI crafted a full 3D house layout from your description.'
+                  ? 'AI crafted a full 3D house layout from your description.'
                   : 'Our AI successfully detected boundaries and rebuilt the 3D model.'}
               </p>
             </div>
@@ -360,7 +365,7 @@ function AIDesigner() {
                     <>
                       <ReportBox icon={<Home size={22} />} label="Rooms Generated" val={result.rooms.length} />
                       <ReportBox icon={<Palette size={22} />} label="Style Profile" val={result.style || 'Modern'} />
-                      <ReportBox icon={<Brain size={22} />} label="AI Engine" val={result.isFallback ? 'Local Generator' : 'Gemini AI'} />
+                      <ReportBox icon={<Brain size={22} />} label="AI Engine" val="YOLO Model" />
                       <ReportBox icon={<Sparkles size={22} />} label="Source" val={result.source || (activeTab === 'text' ? 'Text Prompt' : 'Floor Plan')} />
                     </>
                   ) : result.parameters?.rooms ? (
@@ -368,7 +373,7 @@ function AIDesigner() {
                       <ReportBox icon={<Home size={22} />} label="Rooms Labeled" val={result.parameters.rooms.length} />
                       <ReportBox icon={<Palette size={22} />} label="Style Profile" val={result.style || 'Modern'} />
                       <ReportBox icon={<Brain size={22} />} label="Walls Detected" val={result.parameters?.walls?.length || 0} />
-                      <ReportBox icon={<Sparkles size={22} />} label="AI Engine" val={result.parameters?.source || 'Gemini Vision'} />
+                      <ReportBox icon={<Sparkles size={22} />} label="AI Engine" val="YOLO Model" />
                     </>
                   ) : (
                     <>
@@ -399,21 +404,7 @@ function AIDesigner() {
                 >
                   <Eye size={22} /> VIEW 3D MODEL
                 </button>
-                <button 
-                  onClick={() => {
-                    navigate('/furniture-customizer', { 
-                      state: { 
-                        aiData: result,
-                        fromAI: true
-                      } 
-                    });
-                  }} 
-                  style={{ width: '100%', padding: '20px', background: 'linear-gradient(135deg, #7000ff, #b266ff)', border: 'none', borderRadius: '16px', color: 'white', fontSize: '1.2rem', fontWeight: 900, cursor: 'pointer', boxShadow: '0 10px 30px rgba(112,0,255,0.3)', transition: 'transform 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-                  onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'}
-                  onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                >
-                  <Palette size={22} /> EDIT DESIGN
-                </button>
+
                 <button
                   onClick={() => setResult(null)}
                   style={{ width: '100%', padding: '15px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'white', fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' }}

@@ -14,6 +14,23 @@ const comparePassword = (password, hash) => {
   return hashPassword(password) === hash;
 };
 
+// Pre-load default admin account for development
+const setupDefaultAdmin = () => {
+  const adminUser = {
+    id: 'admin-001',
+    fullName: 'System Administrator',
+    email: 'admin@gmail.com',
+    password: hashPassword('123456'),
+    role: 'Admin',
+    createdAt: new Date()
+  };
+  users.set('admin@gmail.com', adminUser);
+  console.log('✅ Default admin loaded (fallback mode) → admin@gmail.com / 123456');
+};
+
+// Initialize with default admin
+setupDefaultAdmin();
+
 // @route   POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
@@ -34,6 +51,7 @@ router.post('/register', async (req, res) => {
       fullName,
       email,
       password: hashPassword(password),
+      role: 'Customer',
       createdAt: new Date()
     };
 
@@ -50,7 +68,8 @@ router.post('/register', async (req, res) => {
       user: {
         id: user.id,
         fullName: user.fullName,
-        email: user.email
+        email: user.email,
+        role: user.role
       }
     });
   } catch (error) {
@@ -89,7 +108,8 @@ router.post('/login', async (req, res) => {
       user: {
         id: user.id,
         fullName: user.fullName,
-        email: user.email
+        email: user.email,
+        role: user.role
       }
     });
   } catch (error) {

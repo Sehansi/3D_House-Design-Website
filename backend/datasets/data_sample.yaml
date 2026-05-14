@@ -1,0 +1,27 @@
+# Floor Plan YOLO Dataset Configuration
+# =====================================
+# This file defines the structure of your training dataset for YOLOv8
+# 
+# Usage: Place this in backend/datasets/floor-plans/data.yaml
+#
+
+path: /absolute/path/to/datasets/floor-plans  # Absolute path to dataset folder
+train: images/train                           # Path to training images (relative to path)
+val: images/val                               # Path to validation images
+test: images/test                             # Path to test images (optional)
+
+# Number of classes
+nc: 5
+
+# Class names (indices must match your label files)
+names:
+  0: wall
+  1: door
+  2: window
+  3: room
+  4: furniture
+
+# Optional: Advanced settings
+# For YOLOv8 training
+version: 1
+info: "Floor Plan Detection Dataset v1"
